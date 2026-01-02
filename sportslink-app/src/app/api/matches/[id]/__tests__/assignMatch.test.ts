@@ -18,31 +18,68 @@ describe('assignMatch', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     
+    // eq()の後にsingle()が呼ばれるチェーン
+    const mockEqToSingleChain = {
+      single: mockSingle,
+    };
+    
+    // select()の後にeq()が呼ばれるチェーン
+    const mockSelectChain = {
+      eq: mockEq,
+    };
+    
+    // update()の後にeq()が呼ばれるチェーン
     const mockUpdateChain = {
       eq: mockEq,
     };
     
-    mockFrom.mockReturnValue({
-      update: mockUpdate,
-    });
-    
-    mockUpdate.mockReturnValue(mockUpdateChain);
-    mockEq.mockReturnValue({
+    // eq()の後にselect()が呼ばれるチェーン（update後）
+    const mockEqToSelectChain = {
       select: mockSelect,
-    });
-    mockSelect.mockReturnValue({
+    };
+    
+    // select()の後にsingle()が呼ばれるチェーン
+    const mockSelectToSingleChain = {
       single: mockSingle,
+    };
+    
+    // from()が返すオブジェクト（select()とupdate()の両方を持つ）
+    const mockFromChain = {
+      select: mockSelect,
+      update: mockUpdate,
+    };
+    
+    mockFrom.mockReturnValue(mockFromChain);
+    mockSelect.mockReturnValue(mockSelectChain);
+    mockUpdate.mockReturnValue(mockUpdateChain);
+    // eq()は呼び出し元に応じて異なるチェーンを返す
+    mockEq.mockImplementation((column: string) => {
+      if (column === 'id') {
+        // update().eq('id')の後はselect()が呼ばれる
+        return mockEqToSelectChain;
+      }
+      // select().eq()の後はsingle()が呼ばれる
+      return mockEqToSingleChain;
     });
+    // select()がupdate().eq().select()の後に呼ばれた場合
+    mockSelect.mockReturnValue(mockSelectToSingleChain);
   });
 
   it('should assign umpire to match', async () => {
     const mockMatch = {
       id: 'match-123',
+      tournament_id: 'tournament-123',
       umpire_id: 'umpire-456',
       court_number: null,
     };
 
-    mockSingle.mockResolvedValue({
+    // 最初のselect()呼び出し（match取得）
+    mockSingle.mockResolvedValueOnce({
+      data: { tournament_id: 'tournament-123', umpire_id: null },
+      error: null,
+    });
+    // 2回目のselect()呼び出し（update後の取得）
+    mockSingle.mockResolvedValueOnce({
       data: mockMatch,
       error: null,
     });
@@ -67,11 +104,18 @@ describe('assignMatch', () => {
   it('should assign court number to match', async () => {
     const mockMatch = {
       id: 'match-123',
+      tournament_id: 'tournament-123',
       umpire_id: null,
       court_number: 1,
     };
 
-    mockSingle.mockResolvedValue({
+    // 最初のselect()呼び出し（match取得）
+    mockSingle.mockResolvedValueOnce({
+      data: { tournament_id: 'tournament-123', umpire_id: null },
+      error: null,
+    });
+    // 2回目のselect()呼び出し（update後の取得）
+    mockSingle.mockResolvedValueOnce({
       data: mockMatch,
       error: null,
     });
@@ -96,11 +140,18 @@ describe('assignMatch', () => {
   it('should assign both umpire and court number', async () => {
     const mockMatch = {
       id: 'match-123',
+      tournament_id: 'tournament-123',
       umpire_id: 'umpire-456',
       court_number: 2,
     };
 
-    mockSingle.mockResolvedValue({
+    // 最初のselect()呼び出し（match取得）
+    mockSingle.mockResolvedValueOnce({
+      data: { tournament_id: 'tournament-123', umpire_id: null },
+      error: null,
+    });
+    // 2回目のselect()呼び出し（update後の取得）
+    mockSingle.mockResolvedValueOnce({
       data: mockMatch,
       error: null,
     });
@@ -128,11 +179,18 @@ describe('assignMatch', () => {
   it('should handle empty body', async () => {
     const mockMatch = {
       id: 'match-123',
+      tournament_id: 'tournament-123',
       umpire_id: null,
       court_number: null,
     };
 
-    mockSingle.mockResolvedValue({
+    // 最初のselect()呼び出し（match取得）
+    mockSingle.mockResolvedValueOnce({
+      data: { tournament_id: 'tournament-123', umpire_id: null },
+      error: null,
+    });
+    // 2回目のselect()呼び出し（update後の取得）
+    mockSingle.mockResolvedValueOnce({
       data: mockMatch,
       error: null,
     });
@@ -152,11 +210,18 @@ describe('assignMatch', () => {
   it('should handle null values', async () => {
     const mockMatch = {
       id: 'match-123',
+      tournament_id: 'tournament-123',
       umpire_id: null,
       court_number: null,
     };
 
-    mockSingle.mockResolvedValue({
+    // 最初のselect()呼び出し（match取得）
+    mockSingle.mockResolvedValueOnce({
+      data: { tournament_id: 'tournament-123', umpire_id: 'old-umpire' },
+      error: null,
+    });
+    // 2回目のselect()呼び出し（update後の取得）
+    mockSingle.mockResolvedValueOnce({
       data: mockMatch,
       error: null,
     });
@@ -178,7 +243,13 @@ describe('assignMatch', () => {
   });
 
   it('should return 500 on database error', async () => {
-    mockSingle.mockResolvedValue({
+    // 最初のselect()呼び出し（match取得）は成功
+    mockSingle.mockResolvedValueOnce({
+      data: { tournament_id: 'tournament-123', umpire_id: null },
+      error: null,
+    });
+    // 2回目のselect()呼び出し（update後の取得）でエラー
+    mockSingle.mockResolvedValueOnce({
       data: null,
       error: { message: 'Database error' },
     });

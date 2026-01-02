@@ -1,12 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { loadMarkdownDocument, getAvailableVersions } from '../markdown-loader';
 
-// fsモジュールをモック（vi.mock内で直接定義する必要がある）
-vi.mock('fs', () => ({
-  readFileSync: vi.fn(),
-  existsSync: vi.fn(),
-  readdirSync: vi.fn(),
-}));
+// fsモジュールをモック（importOriginalを使用）
+vi.mock('fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('fs')>();
+  return {
+    ...actual,
+    readFileSync: vi.fn(),
+    existsSync: vi.fn(),
+    readdirSync: vi.fn(),
+  };
+});
 
 vi.mock('path', () => ({
   default: {

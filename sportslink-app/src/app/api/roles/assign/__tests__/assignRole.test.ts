@@ -118,7 +118,7 @@ describe('assignRole', () => {
     const data = await response.json();
 
     expect(response.status).toBe(400);
-    expect(data.error).toContain('admin以外のロールはスコープ');
+    expect(data.error).toContain('tournament_adminロールはtournament_idが必須で');
   });
 
   it('should assign admin role without scope', async () => {

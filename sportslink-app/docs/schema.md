@@ -46,6 +46,9 @@ CREATE TABLE public.match_scores (
   game_count_b integer NOT NULL DEFAULT 0,
   final_score text,
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  winner_id uuid,
+  ended_at timestamp with time zone,
+  winning_reason text CHECK (winning_reason = ANY (ARRAY['NORMAL'::text, 'RETIRE'::text, 'DEFAULT'::text])),
   CONSTRAINT match_scores_pkey PRIMARY KEY (match_id),
   CONSTRAINT match_scores_match_id_fkey FOREIGN KEY (match_id) REFERENCES public.matches(id)
 );
@@ -64,10 +67,19 @@ CREATE TABLE public.matches (
   slot_index smallint,
   match_number integer,
   is_confirmed boolean DEFAULT false,
+  parent_match_id uuid,
+  match_type text CHECK (match_type = ANY (ARRAY['team_match'::text, 'individual_match'::text])),
+  next_match_id uuid,
+  winner_source_match_a uuid,
+  winner_source_match_b uuid,
   CONSTRAINT matches_pkey PRIMARY KEY (id),
   CONSTRAINT matches_tournament_id_fkey FOREIGN KEY (tournament_id) REFERENCES public.tournaments(id),
   CONSTRAINT matches_umpire_id_fkey FOREIGN KEY (umpire_id) REFERENCES public.users(id),
-  CONSTRAINT matches_phase_id_fkey FOREIGN KEY (phase_id) REFERENCES public.tournament_phases(id)
+  CONSTRAINT matches_phase_id_fkey FOREIGN KEY (phase_id) REFERENCES public.tournament_phases(id),
+  CONSTRAINT matches_parent_match_id_fkey FOREIGN KEY (parent_match_id) REFERENCES public.matches(id),
+  CONSTRAINT matches_next_match_id_fkey FOREIGN KEY (next_match_id) REFERENCES public.matches(id),
+  CONSTRAINT matches_winner_source_match_a_fkey FOREIGN KEY (winner_source_match_a) REFERENCES public.matches(id),
+  CONSTRAINT matches_winner_source_match_b_fkey FOREIGN KEY (winner_source_match_b) REFERENCES public.matches(id)
 );
 CREATE TABLE public.notifications (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

@@ -29,7 +29,8 @@ describe('getMatches', () => {
     mockSelect.mockReturnValue(mockQueryChain);
     mockOrder.mockReturnValue(mockQueryChain);
     mockRange.mockReturnValue(mockQueryChain);
-    mockEq.mockReturnValue(mockQueryChain);
+    // eq()はthisを返す必要がある（実装でquery = query.eq(...)のように再代入しているため）
+    mockEq.mockReturnThis();
   });
 
   it('should get matches with default pagination', async () => {
@@ -102,12 +103,12 @@ describe('getMatches', () => {
     ];
 
     // mockEqが複数回呼ばれるため、チェーンを維持
-    const mockQueryChainAfterEq = {
+    const createChainAfterEq = () => ({
       eq: mockEq,
       range: mockRange,
-    };
+    });
     
-    mockEq.mockReturnValueOnce(mockQueryChainAfterEq).mockReturnValueOnce(mockQueryChainAfterEq);
+    mockEq.mockImplementation(() => createChainAfterEq());
     mockRange.mockResolvedValue({
       data: mockMatches,
       error: null,

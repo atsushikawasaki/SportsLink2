@@ -1,23 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { loadMarkdownDocument, getAvailableVersions } from '../markdown-loader';
-import * as fs from 'fs';
-import * as path from 'path';
 
 // fsモジュールをモック
-vi.mock('fs', async () => {
-  const actual = await vi.importActual('fs');
-  return {
-    ...actual,
-    default: {
-      readFileSync: vi.fn(),
-      existsSync: vi.fn(),
-      readdirSync: vi.fn(),
-    },
-    readFileSync: vi.fn(),
-    existsSync: vi.fn(),
-    readdirSync: vi.fn(),
-  };
-});
+const mockReadFileSync = vi.fn();
+const mockExistsSync = vi.fn();
+const mockReaddirSync = vi.fn();
+
+vi.mock('fs', () => ({
+  readFileSync: mockReadFileSync,
+  existsSync: mockExistsSync,
+  readdirSync: mockReaddirSync,
+}));
 
 vi.mock('path', () => ({
   default: {
@@ -35,8 +28,8 @@ describe('markdown-loader', () => {
     it('should load markdown document successfully', async () => {
       const mockContent = '# Terms of Service\n\n**バージョン**: 1.0.0\n\n**最終更新日**: 2024年1月1日\n\nContent here.';
       
-      (fs.existsSync as any).mockReturnValue(true);
-      (fs.readFileSync as any).mockReturnValue(mockContent);
+      mockExistsSync.mockReturnValue(true);
+      mockReadFileSync.mockReturnValue(mockContent);
 
       const result = await loadMarkdownDocument('terms', '1.0.0');
 
@@ -48,8 +41,8 @@ describe('markdown-loader', () => {
     it('should extract version from content', async () => {
       const mockContent = '# Privacy Policy\n\n**バージョン**: 2.1.0\n\nContent here.';
       
-      (fs.existsSync as any).mockReturnValue(true);
-      (fs.readFileSync as any).mockReturnValue(mockContent);
+      mockExistsSync.mockReturnValue(true);
+      mockReadFileSync.mockReturnValue(mockContent);
 
       const result = await loadMarkdownDocument('privacy', 'latest');
 
@@ -59,8 +52,8 @@ describe('markdown-loader', () => {
     it('should extract last updated date from content', async () => {
       const mockContent = '# Terms\n\n**最終更新日**: 2024年12月31日\n\nContent.';
       
-      (fs.existsSync as any).mockReturnValue(true);
-      (fs.readFileSync as any).mockReturnValue(mockContent);
+      mockExistsSync.mockReturnValue(true);
+      mockReadFileSync.mockReturnValue(mockContent);
 
       const result = await loadMarkdownDocument('terms', '1.0.0');
 
@@ -68,7 +61,7 @@ describe('markdown-loader', () => {
     });
 
     it('should throw error when file does not exist', async () => {
-      (fs.existsSync as any).mockReturnValue(false);
+      mockExistsSync.mockReturnValue(false);
 
       await expect(loadMarkdownDocument('terms', '999.0.0')).rejects.toThrow('Document not found');
     });
@@ -76,8 +69,8 @@ describe('markdown-loader', () => {
     it('should handle missing version in content', async () => {
       const mockContent = '# Terms\n\nContent without version.';
       
-      (fs.existsSync as any).mockReturnValue(true);
-      (fs.readFileSync as any).mockReturnValue(mockContent);
+      mockExistsSync.mockReturnValue(true);
+      mockReadFileSync.mockReturnValue(mockContent);
 
       const result = await loadMarkdownDocument('terms', '1.0.0');
 
@@ -88,8 +81,8 @@ describe('markdown-loader', () => {
     it('should handle missing last updated date', async () => {
       const mockContent = '# Terms\n\nContent without date.';
       
-      (fs.existsSync as any).mockReturnValue(true);
-      (fs.readFileSync as any).mockReturnValue(mockContent);
+      mockExistsSync.mockReturnValue(true);
+      mockReadFileSync.mockReturnValue(mockContent);
 
       const result = await loadMarkdownDocument('terms', '1.0.0');
 
@@ -99,7 +92,7 @@ describe('markdown-loader', () => {
 
   describe('getAvailableVersions', () => {
     it('should return sorted versions in descending order', async () => {
-      (fs.readdirSync as any).mockReturnValue([
+      mockReaddirSync.mockReturnValue([
         '1.0.0.md',
         '2.0.0.md',
         '1.5.0.md',
@@ -114,7 +107,7 @@ describe('markdown-loader', () => {
     });
 
     it('should exclude latest.md from versions', async () => {
-      (fs.readdirSync as any).mockReturnValue([
+      mockReaddirSync.mockReturnValue([
         '1.0.0.md',
         'latest.md',
       ]);
@@ -126,7 +119,7 @@ describe('markdown-loader', () => {
     });
 
     it('should return empty array on error', async () => {
-      (fs.readdirSync as any).mockImplementation(() => {
+      mockReaddirSync.mockImplementation(() => {
         throw new Error('Directory not found');
       });
 
@@ -136,7 +129,7 @@ describe('markdown-loader', () => {
     });
 
     it('should handle single version', async () => {
-      (fs.readdirSync as any).mockReturnValue(['1.0.0.md']);
+      mockReaddirSync.mockReturnValue(['1.0.0.md']);
 
       const versions = await getAvailableVersions('privacy');
 
@@ -144,7 +137,7 @@ describe('markdown-loader', () => {
     });
 
     it('should sort versions correctly with different lengths', async () => {
-      (fs.readdirSync as any).mockReturnValue([
+      mockReaddirSync.mockReturnValue([
         '1.0.0.md',
         '1.0.md',
         '2.0.0.0.md',

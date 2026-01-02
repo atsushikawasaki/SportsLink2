@@ -1,0 +1,206 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { Trophy, Play, Eye } from 'lucide-react';
+import NotificationCenter from '@/components/NotificationCenter';
+
+interface Match {
+    id: string;
+    round_name: string;
+    match_number: number;
+    status: 'pending' | 'inprogress' | 'finished';
+    court_number: number | null;
+    match_scores?: {
+        game_count_a: number;
+        game_count_b: number;
+    };
+    match_pairs?: Array<{
+        id: string;
+        pair_number: number;
+        teams?: {
+            name: string;
+            school_name: string;
+        };
+    }>;
+    tournaments?: {
+        id: string;
+        name: string;
+    };
+}
+
+export default function AssignedMatchesPage() {
+    const router = useRouter();
+    const { user, isAuthenticated } = useAuthStore();
+    const [matches, setMatches] = useState<Match[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!isAuthenticated || !user) {
+            router.push('/login');
+            return;
+        }
+
+        fetchMatches();
+    }, [isAuthenticated, user, router]);
+
+    const fetchMatches = async () => {
+        if (!user?.id) return;
+
+        try {
+            setLoading(true);
+            setError(null);
+
+            const response = await fetch(`/api/matches/umpire/${user.id}`);
+            const result = await response.json();
+
+            if (!response.ok) {
+                setError(result.error || '試合一覧の取得に失敗しました');
+                return;
+            }
+
+            setMatches(result.data || []);
+        } catch (err) {
+            console.error('Failed to fetch matches:', err);
+            setError('試合一覧の取得に失敗しました');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (!isAuthenticated) {
+        return null;
+    }
+
+    return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-12">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                {/* Header */}
+                <header className="bg-slate-800/50 backdrop-blur-xl border-b border-slate-700/50 mb-8">
+                    <div className="flex items-center justify-between py-4">
+                        <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+                            担当試合一覧
+                        </h1>
+                        <div className="flex items-center gap-4">
+                            <NotificationCenter />
+                            <Link
+                                href="/dashboard"
+                                className="text-slate-400 hover:text-white transition-colors"
+                            >
+                                ダッシュボード
+                            </Link>
+                        </div>
+                    </div>
+                </header>
+
+                {/* Matches List */}
+                {loading ? (
+                    <div className="flex justify-center py-12">
+                        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-400"></div>
+                    </div>
+                ) : error ? (
+                    <div className="text-center py-12">
+                        <p className="text-red-400 mb-4">{error}</p>
+                        <button
+                            onClick={fetchMatches}
+                            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                        >
+                            再試行
+                        </button>
+                    </div>
+                ) : matches.length === 0 ? (
+                    <div className="text-center py-12">
+                        <Trophy className="w-16 h-16 text-slate-500 mx-auto mb-4" />
+                        <p className="text-slate-400 text-lg">担当試合がありません</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {matches.map((match) => (
+                            <div
+                                key={match.id}
+                                className="p-6 bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50 hover:border-slate-600 transition-all"
+                            >
+                                <div className="flex items-center justify-between mb-4">
+                                    <div>
+                                        <p className="text-white font-medium">
+                                            {match.tournaments?.name || '大会'}
+                                        </p>
+                                        <p className="text-slate-400 text-sm">{match.round_name}</p>
+                                        <p className="text-slate-500 text-xs">試合 #{match.match_number}</p>
+                                    </div>
+                                    <span
+                                        className={`px-3 py-1 text-xs rounded ${
+                                            match.status === 'finished'
+                                                ? 'bg-green-500/20 text-green-400'
+                                                : match.status === 'inprogress'
+                                                ? 'bg-blue-500/20 text-blue-400'
+                                                : 'bg-slate-500/20 text-slate-400'
+                                        }`}
+                                    >
+                                        {match.status === 'finished'
+                                            ? '終了'
+                                            : match.status === 'inprogress'
+                                            ? '進行中'
+                                            : '待機中'}
+                                    </span>
+                                </div>
+                                {match.match_pairs && match.match_pairs.length > 0 && (
+                                    <div className="mb-4 space-y-2">
+                                        <div className="text-white">
+                                            {match.match_pairs[0]?.teams?.name || 'チームA'}
+                                        </div>
+                                        <div className="text-slate-400 text-sm">vs</div>
+                                        <div className="text-white">
+                                            {match.match_pairs[1]?.teams?.name || 'チームB'}
+                                        </div>
+                                    </div>
+                                )}
+                                {match.match_scores && (
+                                    <div className="flex items-center justify-center gap-4 mb-4 pt-4 border-t border-slate-700">
+                                        <span className="text-2xl font-bold text-blue-400">
+                                            {match.match_scores.game_count_a}
+                                        </span>
+                                        <span className="text-slate-400">-</span>
+                                        <span className="text-2xl font-bold text-blue-400">
+                                            {match.match_scores.game_count_b}
+                                        </span>
+                                    </div>
+                                )}
+                                <div className="flex gap-2">
+                                    {match.status === 'pending' && (
+                                        <Link
+                                            href={`/scoring/${match.id}`}
+                                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm"
+                                        >
+                                            <Play className="w-4 h-4" />
+                                            試合開始
+                                        </Link>
+                                    )}
+                                    {match.status === 'inprogress' && (
+                                        <Link
+                                            href={`/scoring/${match.id}`}
+                                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm"
+                                        >
+                                            スコア入力
+                                        </Link>
+                                    )}
+                                    <Link
+                                        href={`/matches/${match.id}`}
+                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors text-sm"
+                                    >
+                                        <Eye className="w-4 h-4" />
+                                        詳細
+                                    </Link>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+

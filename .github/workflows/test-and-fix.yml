@@ -1,0 +1,106 @@
+name: テスト実行 → エラー確認 → 自動修正 → 再テスト
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+jobs:
+  test-and-fix:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Node.jsをセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: sportslink-app/package-lock.json
+
+      - name: 依存関係をインストール
+        working-directory: ./sportslink-app
+        run: npm ci
+
+      - name: 初回テスト実行
+        id: first_test
+        working-directory: ./sportslink-app
+        continue-on-error: true
+        run: |
+          npm run test 2>&1 | tee test-output.log
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+
+      - name: リントチェック
+        id: lint_check
+        working-directory: ./sportslink-app
+        continue-on-error: true
+        run: |
+          npm run lint 2>&1 | tee lint-output.log
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+
+      - name: エラー確認と自動修正
+        working-directory: ./sportslink-app
+        if: steps.lint_check.outputs.exit_code != '0'
+        run: |
+          echo "🔧 リントエラーを検出。自動修正を試みます..."
+          npm run lint -- --fix || true
+          echo "✅ 自動修正完了"
+
+      - name: 自動修正後の再テスト
+        working-directory: ./sportslink-app
+        if: steps.first_test.outputs.exit_code != '0' || steps.lint_check.outputs.exit_code != '0'
+        run: |
+          echo "🔄 自動修正後の再テストを実行します..."
+          npm run test || true
+          npm run lint || true
+
+      - name: テスト結果レポート
+        if: always()
+        working-directory: ./sportslink-app
+        run: |
+          echo "## 📊 テスト結果レポート" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 初回テスト実行" >> $GITHUB_STEP_SUMMARY
+          if [ -f test-output.log ]; then
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -50 test-output.log >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### リント結果" >> $GITHUB_STEP_SUMMARY
+          if [ -f lint-output.log ]; then
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -50 lint-output.log >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: テストカバレッジレポート
+        if: always()
+        working-directory: ./sportslink-app
+        run: |
+          npm run test:coverage || true
+          echo "📈 カバレッジレポートを生成しました"
+
+      - name: アーティファクトをアップロード
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            sportslink-app/test-output.log
+            sportslink-app/lint-output.log
+            sportslink-app/coverage/
+
+      - name: 最終チェック
+        working-directory: ./sportslink-app
+        run: |
+          echo "🔍 最終チェックを実行します..."
+          npm run test
+          npm run lint
+

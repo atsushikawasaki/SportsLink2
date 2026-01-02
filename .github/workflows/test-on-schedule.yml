@@ -1,0 +1,41 @@
+name: 定期テスト実行
+
+on:
+  schedule:
+    # 毎日午前2時（JST）に実行
+    - cron: '0 17 * * *'
+  workflow_dispatch:
+
+jobs:
+  scheduled-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+
+      - name: Node.jsをセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: sportslink-app/package-lock.json
+
+      - name: 依存関係をインストール
+        working-directory: ./sportslink-app
+        run: npm ci
+
+      - name: テスト実行
+        working-directory: ./sportslink-app
+        run: npm run test:coverage
+
+      - name: リントチェック
+        working-directory: ./sportslink-app
+        run: npm run lint
+
+      - name: テスト結果を通知
+        if: failure()
+        run: |
+          echo "❌ 定期テストでエラーが検出されました"
+          echo "詳細はGitHub Actionsのログを確認してください"
+

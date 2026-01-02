@@ -1,0 +1,178 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
+import Link from 'next/link';
+import { ArrowLeft, RefreshCw } from 'lucide-react';
+import NotificationCenter from '@/components/NotificationCenter';
+
+interface Match {
+    id: string;
+    round_name: string;
+    match_number: number;
+    status: 'pending' | 'inprogress' | 'finished';
+    court_number: number | null;
+    match_scores?: {
+        game_count_a: number;
+        game_count_b: number;
+    };
+    match_pairs?: Array<{
+        id: string;
+        pair_number: number;
+        teams?: {
+            name: string;
+            school_name: string;
+        };
+    }>;
+}
+
+export default function LivePage() {
+    const params = useParams();
+    const tournamentId = params.id as string;
+
+    const [tournament, setTournament] = useState<any>(null);
+    const [matches, setMatches] = useState<Match[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        fetchData();
+        // 5秒ごとに自動更新
+        const interval = setInterval(fetchData, 5000);
+        return () => clearInterval(interval);
+    }, [tournamentId]);
+
+    const fetchData = async () => {
+        try {
+            setError(null);
+
+            // 大会情報取得
+            const tournamentRes = await fetch(`/api/tournaments/${tournamentId}`);
+            const tournamentData = await tournamentRes.json();
+            if (tournamentRes.ok) {
+                setTournament(tournamentData);
+            }
+
+            // ライブ試合一覧取得（進行中・終了）
+            const matchesRes = await fetch(`/api/scoring/live?tournament_id=${tournamentId}`);
+            const matchesData = await matchesRes.json();
+            if (matchesRes.ok) {
+                setMatches(matchesData.data || []);
+            }
+        } catch (err) {
+            console.error('Failed to fetch live matches:', err);
+            setError('データの取得に失敗しました');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-400"></div>
+            </div>
+        );
+    }
+
+    const liveMatches = matches.filter((m) => m.status === 'inprogress' || m.status === 'finished');
+
+    return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-12">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                {/* Header */}
+                <header className="bg-slate-800/50 backdrop-blur-xl border-b border-slate-700/50 mb-8">
+                    <div className="flex items-center justify-between py-4">
+                        <Link
+                            href={`/tournaments/${tournamentId}`}
+                            className="flex items-center text-slate-400 hover:text-red-400 transition-colors"
+                        >
+                            <ArrowLeft className="w-5 h-5 mr-2" />
+                            大会詳細に戻る
+                        </Link>
+                        <div className="flex items-center gap-4">
+                            <button
+                                onClick={fetchData}
+                                className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors"
+                            >
+                                <RefreshCw className="w-4 h-4" />
+                                更新
+                            </button>
+                            <NotificationCenter />
+                        </div>
+                    </div>
+                    <div className="mt-4">
+                        <h1 className="text-3xl font-bold bg-gradient-to-r from-red-400 to-pink-400 bg-clip-text text-transparent">
+                            リアルタイム観戦
+                        </h1>
+                        {tournament && <p className="text-slate-400 mt-2">{tournament.name}</p>}
+                        <p className="text-slate-500 text-sm mt-1">5秒ごとに自動更新</p>
+                    </div>
+                </header>
+
+                {/* Live Matches */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {liveMatches.map((match) => (
+                        <Link
+                            key={match.id}
+                            href={`/matches/${match.id}`}
+                            className="p-6 bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50 hover:border-red-500 transition-all"
+                        >
+                            <div className="flex items-center justify-between mb-4">
+                                <div>
+                                    <p className="text-white font-medium">{match.round_name}</p>
+                                    <p className="text-slate-400 text-sm">試合 #{match.match_number}</p>
+                                </div>
+                                {match.court_number && (
+                                    <span className="px-3 py-1 bg-red-500/20 text-red-400 rounded-full text-sm">
+                                        コート {match.court_number}
+                                    </span>
+                                )}
+                            </div>
+                            {match.match_pairs && match.match_pairs.length > 0 && (
+                                <div className="space-y-2 mb-4">
+                                    <div className="text-white font-medium">
+                                        {match.match_pairs[0]?.teams?.name || 'チームA'}
+                                    </div>
+                                    <div className="text-slate-400 text-sm">vs</div>
+                                    <div className="text-white font-medium">
+                                        {match.match_pairs[1]?.teams?.name || 'チームB'}
+                                    </div>
+                                </div>
+                            )}
+                            {match.match_scores && (
+                                <div className="flex items-center justify-center gap-4 pt-4 border-t border-slate-700">
+                                    <span className="text-3xl font-bold text-red-400">
+                                        {match.match_scores.game_count_a}
+                                    </span>
+                                    <span className="text-slate-400">-</span>
+                                    <span className="text-3xl font-bold text-red-400">
+                                        {match.match_scores.game_count_b}
+                                    </span>
+                                </div>
+                            )}
+                            <div className="mt-4 flex justify-center">
+                                <span
+                                    className={`px-3 py-1 text-xs rounded ${
+                                        match.status === 'finished'
+                                            ? 'bg-green-500/20 text-green-400'
+                                            : 'bg-blue-500/20 text-blue-400 animate-pulse'
+                                    }`}
+                                >
+                                    {match.status === 'finished' ? '終了' : '進行中'}
+                                </span>
+                            </div>
+                        </Link>
+                    ))}
+                </div>
+
+                {liveMatches.length === 0 && (
+                    <div className="text-center py-12">
+                        <p className="text-slate-400">現在進行中の試合はありません</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+

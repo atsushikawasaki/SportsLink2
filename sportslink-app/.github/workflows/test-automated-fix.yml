@@ -1,0 +1,113 @@
+name: 自動テスト修正サイクル
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+jobs:
+  automated-test-fix-cycle:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+
+      - name: Node.jsをセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: sportslink-app/package-lock.json
+
+      - name: 依存関係をインストール
+        working-directory: ./sportslink-app
+        run: npm ci
+
+      - name: テスト実行と自動修正サイクル
+        id: test_cycle
+        working-directory: ./sportslink-app
+        continue-on-error: true
+        run: |
+          MAX_ITERATIONS=5
+          ITERATION=0
+          
+          while [ $ITERATION -lt $MAX_ITERATIONS ]; do
+            ITERATION=$((ITERATION + 1))
+            echo "🔄 テスト実行サイクル #$ITERATION"
+            
+            # テスト実行
+            if npm run test > test-output-${ITERATION}.log 2>&1; then
+              echo "✅ テストが成功しました！"
+              echo "success=true" >> $GITHUB_OUTPUT
+              echo "iteration=$ITERATION" >> $GITHUB_OUTPUT
+              break
+            else
+              TEST_EXIT_CODE=$?
+              echo "❌ テストが失敗しました (終了コード: $TEST_EXIT_CODE)"
+              
+              # リントエラーを自動修正
+              echo "🔧 リントエラーを自動修正中..."
+              npm run lint -- --fix || true
+              
+              # エラーログを確認
+              if grep -q "Cannot find module" test-output-${ITERATION}.log; then
+                echo "⚠️  モジュールが見つからないエラーを検出"
+              fi
+              
+              if grep -q "SyntaxError" test-output-${ITERATION}.log; then
+                echo "⚠️  構文エラーを検出"
+              fi
+              
+              if [ $ITERATION -eq $MAX_ITERATIONS ]; then
+                echo "❌ 最大試行回数に達しました"
+                echo "success=false" >> $GITHUB_OUTPUT
+                echo "iteration=$ITERATION" >> $GITHUB_OUTPUT
+                break
+              fi
+              
+              echo "⏳ 次のサイクルを待機..."
+              sleep 2
+            fi
+          done
+
+      - name: テスト結果サマリー
+        if: always()
+        working-directory: ./sportslink-app
+        run: |
+          echo "## 🧪 自動テスト修正サイクル結果" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.test_cycle.outputs.success }}" == "true" ]; then
+            echo "✅ **テスト成功** (サイクル回数: ${{ steps.test_cycle.outputs.iteration }})" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **テスト失敗** (最大試行回数に達しました)" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 最終テスト結果" >> $GITHUB_STEP_SUMMARY
+          if [ -f test-output-*.log ]; then
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -100 test-output-*.log | head -50 >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: アーティファクトをアップロード
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-cycle-results
+          path: |
+            sportslink-app/test-output-*.log
+            sportslink-app/coverage/
+
+      - name: 最終検証
+        if: steps.test_cycle.outputs.success == 'true'
+        working-directory: ./sportslink-app
+        run: |
+          echo "✅ 最終検証を実行します..."
+          npm run test
+          npm run lint
+

@@ -67,31 +67,71 @@ export async function finishMatch(matchId: string) {
             // 敗者を判定
             const loserPair = scoreA < scoreB ? match.match_pairs?.[0] : match.match_pairs?.[1];
             
-            if (loserPair && match.loser_next_match_id) {
-                // 敗者のエントリーから認証キーを取得
+            if (loserPair && match.next_match_id) {
+                // 敗者のエントリーからteam_idを取得
                 const { data: loserEntry } = await supabase
                     .from('tournament_entries')
-                    .select('day_token')
+                    .select('team_id, day_token')
                     .eq('team_id', loserPair.teams?.id)
                     .eq('tournament_id', tournament.id)
+                    .eq('is_checked_in', true)
                     .single();
 
-                if (loserEntry?.day_token) {
-                    // 次試合の審判権限を有効化（次試合のumpire_idを設定）
-                    // 実際の実装では、day_tokenからユーザーIDを取得する必要があります
-                    // ここでは、次試合のumpire_idを更新する処理を追加
-                    // 注意: 実際の実装では、day_tokenとユーザーIDのマッピングが必要です
-                    // 暫定的に、次試合の情報を取得して処理
-                    const { data: nextMatch } = await supabase
-                        .from('matches')
-                        .select('id, umpire_id')
-                        .eq('id', match.loser_next_match_id)
+                if (loserEntry?.team_id) {
+                    // 敗者チームのteam_manager_user_idを取得
+                    const { data: team } = await supabase
+                        .from('teams')
+                        .select('team_manager_user_id')
+                        .eq('id', loserEntry.team_id)
                         .single();
 
-                    if (nextMatch) {
-                        // 次試合の審判権限を更新（実際の実装では、day_tokenからユーザーIDを取得）
-                        // ここでは、次試合の情報を返すのみ
-                        console.log('審判権限の自動委譲: 次試合ID', nextMatch.id);
+                    if (team?.team_manager_user_id) {
+                        const { createAdminClient } = await import('@/lib/supabase/admin');
+                        const adminSupabase = createAdminClient();
+
+                        // 次試合の情報を取得
+                        const { data: nextMatch } = await supabase
+                            .from('matches')
+                            .select('id, tournament_id')
+                            .eq('id', match.next_match_id)
+                            .single();
+
+                        if (nextMatch) {
+                            // 既存の審判権限を確認（tournament_idのみ、match_idはNULL）
+                            const { data: existingPermission } = await adminSupabase
+                                .from('user_permissions')
+                                .select('id')
+                                .eq('user_id', team.team_manager_user_id)
+                                .eq('role_type', 'umpire')
+                                .eq('tournament_id', nextMatch.tournament_id)
+                                .is('match_id', null)
+                                .maybeSingle();
+
+                            if (existingPermission) {
+                                // 既存の権限を更新してmatch_idを設定
+                                await adminSupabase
+                                    .from('user_permissions')
+                                    .update({ match_id: nextMatch.id })
+                                    .eq('id', existingPermission.id);
+                            } else {
+                                // 新しい審判権限を作成
+                                await adminSupabase
+                                    .from('user_permissions')
+                                    .insert({
+                                        user_id: team.team_manager_user_id,
+                                        role_type: 'umpire',
+                                        tournament_id: nextMatch.tournament_id,
+                                        team_id: null,
+                                        match_id: nextMatch.id,
+                                    });
+                            }
+
+                            // 次試合のumpire_idを更新
+                            await supabase
+                                .from('matches')
+                                .update({ umpire_id: team.team_manager_user_id })
+                                .eq('id', nextMatch.id);
+                        }
                     }
                 }
             }

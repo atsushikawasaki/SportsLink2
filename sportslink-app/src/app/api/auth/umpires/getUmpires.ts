@@ -16,15 +16,25 @@ export async function getUmpires(request: Request) {
             );
         }
 
-        // Get users with umpire permission (global or tournament-specific)
-        // Get user IDs from user_permissions where role_type = 'umpire'
+        // Get tournament_id from query parameter
+        const { searchParams } = new URL(request.url);
+        const tournamentId = searchParams.get('tournament_id');
+
+        if (!tournamentId) {
+            return NextResponse.json(
+                { error: 'tournament_idパラメータが必要です', code: 'E-VER-003' },
+                { status: 400 }
+            );
+        }
+
+        // Get users with umpire permission for the specified tournament
+        // Get user IDs from user_permissions where role_type = 'umpire' and tournament_id matches
         const { data: umpirePermissions, error: permError } = await supabase
             .from('user_permissions')
             .select('user_id')
             .eq('role_type', 'umpire')
-            .is('tournament_id', null) // Global umpires only for this endpoint
-            .is('team_id', null)
-            .is('match_id', null);
+            .eq('tournament_id', tournamentId)
+            .is('team_id', null);
 
         if (permError) {
             console.error('Get umpire permissions error:', permError);

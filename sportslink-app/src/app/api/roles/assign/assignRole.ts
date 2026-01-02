@@ -40,10 +40,24 @@ export async function assignRole(request: Request) {
                     { status: 400 }
                 );
             }
-        } else {
-            if (!tournament_id && !team_id && !match_id) {
+        } else if (roleType === 'tournament_admin') {
+            if (!tournament_id || team_id || match_id) {
                 return NextResponse.json(
-                    { error: 'admin以外のロールはスコープ（tournament_id, team_id, match_idのいずれか）を指定してください', code: 'E-VER-003' },
+                    { error: 'tournament_adminロールはtournament_idが必須で、team_idとmatch_idは指定できません', code: 'E-VER-003' },
+                    { status: 400 }
+                );
+            }
+        } else if (roleType === 'team_admin') {
+            if (!team_id || tournament_id || match_id) {
+                return NextResponse.json(
+                    { error: 'team_adminロールはteam_idが必須で、tournament_idとmatch_idは指定できません', code: 'E-VER-003' },
+                    { status: 400 }
+                );
+            }
+        } else if (roleType === 'umpire') {
+            if (!tournament_id || team_id) {
+                return NextResponse.json(
+                    { error: 'umpireロールはtournament_idが必須で、team_idは指定できません。match_idはオプションです', code: 'E-VER-003' },
                     { status: 400 }
                 );
             }

@@ -14,16 +14,35 @@ vi.mock('@/lib/supabase/server', () => ({
   })),
 }));
 
+// チェーン可能なオブジェクトを作成するヘルパー関数
+const createChain = (result: { data: unknown; error: null | { message: string }; count: number | null } = { data: [], error: null, count: 0 }) => {
+  const chain: {
+    select: ReturnType<typeof vi.fn>;
+    order: ReturnType<typeof vi.fn>;
+    range: ReturnType<typeof vi.fn>;
+    eq: ReturnType<typeof vi.fn>;
+    then?: (resolve: (value: { data: unknown; error: null | { message: string }; count: number | null }) => void) => Promise<{ data: unknown; error: null | { message: string }; count: number | null }>;
+    catch?: ReturnType<typeof vi.fn>;
+  } = {
+    select: mockSelect,
+    order: mockOrder,
+    range: mockRange,
+    eq: mockEq,
+  };
+  // Promiseとして扱えるようにthenメソッドを追加
+  chain.then = vi.fn((resolve) => {
+    resolve(result);
+    return Promise.resolve(result);
+  }) as unknown as (resolve: (value: { data: unknown; error: null | { message: string }; count: number | null }) => void) => Promise<{ data: unknown; error: null | { message: string }; count: number | null }>;
+  chain.catch = vi.fn();
+  return chain;
+};
+
 describe('getMatches', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     
-    const mockQueryChain = {
-      select: mockSelect,
-      order: mockOrder,
-      range: mockRange,
-      eq: mockEq,
-    };
+    const mockQueryChain = createChain();
     
     mockFrom.mockImplementation(() => mockQueryChain);
     mockSelect.mockReturnValue(mockQueryChain);
@@ -39,11 +58,12 @@ describe('getMatches', () => {
       { id: 'match-2', tournament_id: 'tournament-123' },
     ];
 
-    mockRange.mockResolvedValue({
+    const chainWithResult = createChain({
       data: mockMatches,
       error: null,
       count: 2,
     });
+    mockRange.mockReturnValue(chainWithResult);
 
     const request = new Request('http://localhost/api/matches');
 
@@ -62,11 +82,12 @@ describe('getMatches', () => {
       { id: 'match-1', tournament_id: 'tournament-123' },
     ];
 
-    mockEq.mockResolvedValue({
+    const chainWithResult = createChain({
       data: mockMatches,
       error: null,
       count: 1,
     });
+    mockRange.mockReturnValue(chainWithResult);
 
     const request = new Request('http://localhost/api/matches?tournament_id=tournament-123');
 
@@ -82,11 +103,12 @@ describe('getMatches', () => {
       { id: 'match-1', status: 'inprogress' },
     ];
 
-    mockEq.mockResolvedValue({
+    const chainWithResult = createChain({
       data: mockMatches,
       error: null,
       count: 1,
     });
+    mockRange.mockReturnValue(chainWithResult);
 
     const request = new Request('http://localhost/api/matches?status=inprogress');
 
@@ -102,18 +124,13 @@ describe('getMatches', () => {
       { id: 'match-1', tournament_id: 'tournament-123', status: 'inprogress' },
     ];
 
-    // mockEqが複数回呼ばれるため、チェーンを維持
-    const createChainAfterEq = () => ({
-      eq: mockEq,
-      range: mockRange,
-    });
-    
-    mockEq.mockImplementation(() => createChainAfterEq());
-    mockRange.mockResolvedValue({
+    const chainWithResult = createChain({
       data: mockMatches,
       error: null,
       count: 1,
     });
+    // range()が返すオブジェクトにもeq()メソッドが必要
+    mockRange.mockReturnValue(chainWithResult);
 
     const request = new Request('http://localhost/api/matches?tournament_id=tournament-123&status=inprogress');
 
@@ -126,11 +143,12 @@ describe('getMatches', () => {
   });
 
   it('should return 500 on database error', async () => {
-    mockRange.mockResolvedValue({
+    const chainWithError = createChain({
       data: null,
       error: { message: 'Database error' },
       count: null,
     });
+    mockRange.mockReturnValue(chainWithError);
 
     const request = new Request('http://localhost/api/matches');
 

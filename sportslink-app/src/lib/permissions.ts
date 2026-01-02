@@ -131,26 +131,9 @@ export async function checkPermission(
     }
 
     // If no exact match found, check for broader permissions
-    // 1. Check for global permission (all scope fields NULL) - applies to all scopes
-    // This is especially important for umpire role
-    if (scope && (scope.tournament_id || scope.team_id || scope.match_id)) {
-        const { data: globalPermission } = await supabase
-            .from('user_permissions')
-            .select('id')
-            .eq('user_id', userId)
-            .eq('role_type', roleType)
-            .is('tournament_id', null)
-            .is('team_id', null)
-            .is('match_id', null)
-            .maybeSingle();
-        
-        if (globalPermission) {
-            return true;
-        }
-    }
-
-    // 2. For tournament-level checks, check if user has tournament-level permission
-    if (scope && scope.tournament_id && !scope.team_id && !scope.match_id) {
+    // For tournament-level checks, check if user has tournament-level permission (match_id is NULL)
+    // This applies to umpire role: tournament-level permission allows access to all matches in that tournament
+    if (scope && scope.tournament_id && scope.match_id && !scope.team_id) {
         const { data: tournamentPermission } = await supabase
             .from('user_permissions')
             .select('id')
@@ -226,18 +209,19 @@ export async function isTeamAdmin(userId: string, teamId: string): Promise<boole
 }
 
 /**
- * Check if user has umpire role (global or tournament-specific)
+ * Check if user has umpire role for a specific tournament/match
  * 
  * @param userId - User ID to check
- * @param tournamentId - Optional tournament ID for tournament-specific umpire
+ * @param tournamentId - Tournament ID (required)
+ * @param matchId - Optional match ID for match-specific umpire check
  * @returns true if user is umpire, false otherwise
  */
-export async function isUmpire(userId: string, tournamentId?: string): Promise<boolean> {
-    if (tournamentId) {
-        return checkPermission(userId, 'umpire', { tournament_id: tournamentId });
+export async function isUmpire(userId: string, tournamentId: string, matchId?: string): Promise<boolean> {
+    if (matchId) {
+        return checkPermission(userId, 'umpire', { tournament_id: tournamentId, match_id: matchId });
     } else {
-        // Check for global umpire permission
-        return checkPermission(userId, 'umpire');
+        // Check for tournament-level umpire permission (match_id is NULL)
+        return checkPermission(userId, 'umpire', { tournament_id: tournamentId });
     }
 }
 

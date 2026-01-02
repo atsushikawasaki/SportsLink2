@@ -1,15 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { loadMarkdownDocument, getAvailableVersions } from '../markdown-loader';
 
-// fsモジュールをモック
-const mockReadFileSync = vi.fn();
-const mockExistsSync = vi.fn();
-const mockReaddirSync = vi.fn();
-
+// fsモジュールをモック（vi.mock内で直接定義する必要がある）
 vi.mock('fs', () => ({
-  readFileSync: mockReadFileSync,
-  existsSync: mockExistsSync,
-  readdirSync: mockReaddirSync,
+  readFileSync: vi.fn(),
+  existsSync: vi.fn(),
+  readdirSync: vi.fn(),
 }));
 
 vi.mock('path', () => ({
@@ -19,7 +15,14 @@ vi.mock('path', () => ({
   join: (...args: string[]) => args.join('/'),
 }));
 
+// モック関数を取得
+import * as fs from 'fs';
+
 describe('markdown-loader', () => {
+  const mockReadFileSync = vi.mocked(fs.readFileSync);
+  const mockExistsSync = vi.mocked(fs.existsSync);
+  const mockReaddirSync = vi.mocked(fs.readdirSync);
+
   beforeEach(() => {
     vi.clearAllMocks();
   });

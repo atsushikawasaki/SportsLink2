@@ -1,18 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { checkRole } from '../checkRole';
+import { checkPermission } from '@/lib/permissions';
 
 // checkPermissionをモック
-const mockCheckPermission = vi.fn();
+vi.mock('@/lib/permissions', async () => {
+  const actual = await vi.importActual('@/lib/permissions');
+  return {
+    ...actual,
+    checkPermission: vi.fn(),
+    RoleType: {
+      admin: 'admin',
+      tournament_admin: 'tournament_admin',
+      team_admin: 'team_admin',
+      umpire: 'umpire',
+    },
+  };
+});
 
-vi.mock('@/lib/permissions', () => ({
-  checkPermission: mockCheckPermission,
-  RoleType: {
-    admin: 'admin',
-    tournament_admin: 'tournament_admin',
-    team_admin: 'team_admin',
-    umpire: 'umpire',
-  },
-}));
+const mockCheckPermission = vi.mocked(checkPermission);
 
 describe('checkRole', () => {
   beforeEach(() => {

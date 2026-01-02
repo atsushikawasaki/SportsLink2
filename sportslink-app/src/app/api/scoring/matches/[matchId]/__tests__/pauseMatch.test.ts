@@ -38,9 +38,6 @@ describe('pauseMatch', () => {
     mockSelect.mockReturnValue(mockQueryChain);
     mockEq.mockReturnValue(mockQueryChain);
     mockUpdate.mockReturnValue(mockUpdateChain);
-    mockSelect.mockReturnValue({
-      single: mockSingle,
-    });
   });
 
   it('should pause inprogress match successfully', async () => {
@@ -149,7 +146,9 @@ describe('pauseMatch', () => {
   });
 
   it('should return 500 on server error', async () => {
-    mockFrom.mockRejectedValue(new Error('Server error'));
+    mockFrom.mockImplementation(() => {
+      throw new Error('Server error');
+    });
 
     const response = await pauseMatch('match-123');
     const data = await response.json();

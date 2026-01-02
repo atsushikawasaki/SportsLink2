@@ -22,9 +22,9 @@ describe('removeRole', () => {
       is: mockIs,
     };
     
-    mockFrom.mockReturnValue({
+    mockFrom.mockImplementation(() => ({
       delete: mockDelete,
-    });
+    }));
     
     mockDelete.mockReturnValue(mockDeleteChain);
     mockEq.mockReturnValue(mockDeleteChain);
@@ -159,7 +159,9 @@ describe('removeRole', () => {
   });
 
   it('should return 500 on server error', async () => {
-    mockFrom.mockRejectedValue(new Error('Server error'));
+    mockFrom.mockImplementation(() => {
+      throw new Error('Server error');
+    });
 
     const request = new Request('http://localhost/api/roles/remove?user_id=user-123&role=admin');
 

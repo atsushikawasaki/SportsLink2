@@ -38,9 +38,6 @@ describe('revertMatch', () => {
     mockSelect.mockReturnValue(mockQueryChain);
     mockEq.mockReturnValue(mockQueryChain);
     mockUpdate.mockReturnValue(mockUpdateChain);
-    mockSelect.mockReturnValue({
-      single: mockSingle,
-    });
   });
 
   it('should revert finished match to inprogress', async () => {
@@ -147,7 +144,9 @@ describe('revertMatch', () => {
   });
 
   it('should return 500 on server error', async () => {
-    mockFrom.mockRejectedValue(new Error('Server error'));
+    mockFrom.mockImplementation(() => {
+      throw new Error('Server error');
+    });
 
     const response = await revertMatch('match-123');
     const data = await response.json();

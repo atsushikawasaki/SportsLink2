@@ -269,8 +269,8 @@ describe('submitContact', () => {
     const data = await response.json();
 
     expect(response.status).toBe(500);
-    expect(data.error).toContain('お問い合わせの送信に失敗しました');
-    expect(data.code).toBe('E-SERVER-001');
+    expect(data.error).toContain('お問い合わせの保存に失敗しました');
+    expect(data.code).toBe('E-DB-001');
   });
 });
 

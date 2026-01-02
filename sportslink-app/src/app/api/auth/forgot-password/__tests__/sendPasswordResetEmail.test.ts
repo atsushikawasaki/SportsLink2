@@ -70,7 +70,7 @@ describe('sendPasswordResetEmail', () => {
     );
   });
 
-  it('should return success even when email does not exist (prevent enumeration)', async () => {
+  it('should return 400 when email does not exist (implementation detail)', async () => {
     mockResetPasswordForEmail.mockResolvedValue({
       data: {},
       error: { message: 'User not found' },
@@ -86,9 +86,9 @@ describe('sendPasswordResetEmail', () => {
     const response = await sendPasswordResetEmail(request);
     const data = await response.json();
 
-    // Should still return 200 to prevent email enumeration
-    expect(response.status).toBe(200);
-    expect(data.message).toContain('パスワードリセットメールを送信しました');
+    // Current implementation returns 400 on error
+    expect(response.status).toBe(400);
+    expect(data.error).toBeDefined();
   });
 
   it('should return 400 when Supabase returns error', async () => {

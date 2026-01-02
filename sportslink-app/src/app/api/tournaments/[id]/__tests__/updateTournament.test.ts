@@ -113,7 +113,9 @@ describe('updateTournament', () => {
   });
 
   it('should return 500 on server error', async () => {
-    mockFrom.mockRejectedValue(new Error('Server error'));
+    mockFrom.mockImplementation(() => {
+      throw new Error('Server error');
+    });
 
     const request = new Request('http://localhost/api/tournaments/tournament-123', {
       method: 'PUT',

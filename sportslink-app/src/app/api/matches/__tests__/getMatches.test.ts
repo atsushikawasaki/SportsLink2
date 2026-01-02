@@ -25,7 +25,7 @@ describe('getMatches', () => {
       eq: mockEq,
     };
     
-    mockFrom.mockReturnValue(mockQueryChain);
+    mockFrom.mockImplementation(() => mockQueryChain);
     mockSelect.mockReturnValue(mockQueryChain);
     mockOrder.mockReturnValue(mockQueryChain);
     mockRange.mockReturnValue(mockQueryChain);
@@ -101,7 +101,14 @@ describe('getMatches', () => {
       { id: 'match-1', tournament_id: 'tournament-123', status: 'inprogress' },
     ];
 
-    mockEq.mockResolvedValue({
+    // mockEqが複数回呼ばれるため、チェーンを維持
+    const mockQueryChainAfterEq = {
+      eq: mockEq,
+      range: mockRange,
+    };
+    
+    mockEq.mockReturnValueOnce(mockQueryChainAfterEq).mockReturnValueOnce(mockQueryChainAfterEq);
+    mockRange.mockResolvedValue({
       data: mockMatches,
       error: null,
       count: 1,
@@ -114,6 +121,7 @@ describe('getMatches', () => {
 
     expect(response.status).toBe(200);
     expect(mockEq).toHaveBeenCalledWith('tournament_id', 'tournament-123');
+    expect(mockEq).toHaveBeenCalledWith('status', 'inprogress');
   });
 
   it('should return 500 on database error', async () => {
@@ -134,7 +142,9 @@ describe('getMatches', () => {
   });
 
   it('should return 500 on server error', async () => {
-    mockFrom.mockRejectedValue(new Error('Server error'));
+    mockFrom.mockImplementation(() => {
+      throw new Error('Server error');
+    });
 
     const request = new Request('http://localhost/api/matches');
 

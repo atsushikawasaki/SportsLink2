@@ -171,7 +171,9 @@ describe('getMatch', () => {
   });
 
   it('should return 500 on server error', async () => {
-    mockFrom.mockRejectedValue(new Error('Server error'));
+    mockFrom.mockImplementation(() => {
+      throw new Error('Server error');
+    });
 
     const response = await getMatch('match-123');
     const data = await response.json();

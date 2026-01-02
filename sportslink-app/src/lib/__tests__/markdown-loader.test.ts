@@ -4,11 +4,20 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 // fsモジュールをモック
-vi.mock('fs', () => ({
-  readFileSync: vi.fn(),
-  existsSync: vi.fn(),
-  readdirSync: vi.fn(),
-}));
+vi.mock('fs', async () => {
+  const actual = await vi.importActual('fs');
+  return {
+    ...actual,
+    default: {
+      readFileSync: vi.fn(),
+      existsSync: vi.fn(),
+      readdirSync: vi.fn(),
+    },
+    readFileSync: vi.fn(),
+    existsSync: vi.fn(),
+    readdirSync: vi.fn(),
+  };
+});
 
 vi.mock('path', () => ({
   default: {

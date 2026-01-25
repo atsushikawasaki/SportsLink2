@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, memo } from 'react';
+import { useEffect, useState, memo, useRef } from 'react';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -33,7 +33,7 @@ interface Match {
 }
 
 export default function DashboardPage() {
-    const { user, isAuthenticated, setLoading } = useAuthStore();
+    const { user, isAuthenticated, setLoading: setAuthLoading } = useAuthStore();
     const router = useRouter();
     const [tournaments, setTournaments] = useState<Tournament[]>([]);
     const [assignedMatches, setAssignedMatches] = useState<Match[]>([]);
@@ -44,98 +44,95 @@ export default function DashboardPage() {
         public: 0,
     });
 
-    const checkConsentStatus = useCallback(async () => {
-        if (!isAuthenticated) return;
-
-        try {
-            const response = await fetch('/api/auth/consent/check');
-            const result = await response.json();
-            if (response.ok && result.needs_reconsent) {
-                router.push('/consent');
-            }
-        } catch (err) {
-            // エラーは無視（規約チェックの失敗でダッシュボードをブロックしない）
-            console.error('Consent check error:', err);
-        }
-    }, [isAuthenticated, router]);
-
-    const fetchTournaments = useCallback(async () => {
-        try {
-            // 並列でデータ取得（Promise.all）
-            const promises: Promise<any>[] = [
-                // 大会一覧取得（表示分のみ）
-                fetch('/api/tournaments?limit=5').then((res) => res.json()),
-            ];
-
-            // 審判割り当て試合取得（ユーザーがいる場合のみ）
-            if (user?.id) {
-                promises.push(
-                    fetch(`/api/matches/umpire/${user.id}`)
-                        .then((res) => res.json())
-                        .catch((err) => {
-                            console.error('Error fetching umpire matches:', err);
-                            return { data: [], error: null };
-                        })
-                );
-            }
-
-            const [tournamentsResult, matchesResult] = await Promise.all(promises);
-
-            // 大会一覧の処理
-            if (tournamentsResult.data) {
-                const allTournaments = tournamentsResult.data || [];
-                setTournaments(allTournaments);
-
-                // 大会サマリー計算
-                const managed = allTournaments.length;
-                const entered = allTournaments.filter(
-                    (t: Tournament) => t.status === 'published' || t.status === 'finished'
-                ).length;
-                const publicCount = allTournaments.filter(
-                    (t: Tournament) => t.is_public && t.status === 'published'
-                ).length;
-
-                setTournamentStats({
-                    managed,
-                    entered,
-                    public: publicCount,
-                });
-            }
-
-            // 審判割り当て試合の処理
-            if (matchesResult && matchesResult.data) {
-                const matches = matchesResult.data || [];
-                // 進行中・待機中の試合のみ表示
-                const activeMatches = matches.filter(
-                    (m: Match) => m.status === 'inprogress' || m.status === 'pending'
-                );
-                setAssignedMatches(activeMatches.slice(0, 5));
-            } else if (matchesResult?.error) {
-                // エラーが発生した場合でもアプリケーションを続行
-                console.error('Failed to fetch umpire matches:', matchesResult);
-                // RLS無限再帰エラーの場合は特別なメッセージを表示
-                if (matchesResult.details?.code === '42P17') {
-                    console.warn('RLS infinite recursion detected. Please apply migration 014.');
-                }
-                setAssignedMatches([]);
-            }
-        } catch (error) {
-            console.error('Failed to fetch data:', error);
-        } finally {
-            setLoadingState(false);
-        }
-    }, [user?.id]);
+    // 初回フェッチ済みフラグ
+    const hasFetched = useRef(false);
+    // 最新のuser.idを参照するためのref
+    const userIdRef = useRef(user?.id);
+    userIdRef.current = user?.id;
 
     useEffect(() => {
-        setLoading(false);
+        // 認証チェック
         if (!isAuthenticated) {
             router.push('/login');
             return;
         }
 
-        fetchTournaments();
-        checkConsentStatus();
-    }, [isAuthenticated, router, setLoading, fetchTournaments, checkConsentStatus]);
+        // 既にフェッチ済みの場合はスキップ
+        if (hasFetched.current) {
+            setAuthLoading(false);
+            return;
+        }
+        hasFetched.current = true;
+
+        const fetchData = async () => {
+            try {
+                // 全てのAPIリクエストを並列で実行
+                const promises: Promise<any>[] = [
+                    // 大会一覧取得
+                    fetch('/api/tournaments?limit=5').then(res => res.json()).catch(() => ({ data: [] })),
+                    // 規約同意チェック
+                    fetch('/api/auth/consent/check').then(res => res.json()).catch(() => ({ needs_reconsent: false })),
+                ];
+
+                // 審判割り当て試合取得（ユーザーIDがある場合のみ）
+                const userId = userIdRef.current;
+                if (userId) {
+                    promises.push(
+                        fetch(`/api/matches/umpire/${userId}`)
+                            .then(res => res.json())
+                            .catch(() => ({ data: [] }))
+                    );
+                }
+
+                const [tournamentsResult, consentResult, matchesResult] = await Promise.all(promises);
+
+                // 規約同意チェック
+                if (consentResult?.needs_reconsent) {
+                    router.push('/consent');
+                    return;
+                }
+
+                // 大会一覧の処理
+                if (tournamentsResult?.data) {
+                    const allTournaments = tournamentsResult.data || [];
+                    setTournaments(allTournaments);
+
+                    // 大会サマリー計算
+                    const managed = allTournaments.length;
+                    const entered = allTournaments.filter(
+                        (t: Tournament) => t.status === 'published' || t.status === 'finished'
+                    ).length;
+                    const publicCount = allTournaments.filter(
+                        (t: Tournament) => t.is_public && t.status === 'published'
+                    ).length;
+
+                    setTournamentStats({
+                        managed,
+                        entered,
+                        public: publicCount,
+                    });
+                }
+
+                // 審判割り当て試合の処理
+                if (matchesResult?.data) {
+                    const matches = matchesResult.data || [];
+                    // 進行中・待機中の試合のみ表示
+                    const activeMatches = matches.filter(
+                        (m: Match) => m.status === 'inprogress' || m.status === 'pending'
+                    );
+                    setAssignedMatches(activeMatches.slice(0, 5));
+                }
+            } catch (error) {
+                console.error('Failed to fetch data:', error);
+            } finally {
+                setLoadingState(false);
+                setAuthLoading(false);
+            }
+        };
+
+        fetchData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isAuthenticated]);
 
     if (!isAuthenticated) {
         return null;
@@ -223,11 +220,10 @@ export default function DashboardPage() {
                                         </div>
                                         <div className="flex items-center gap-3">
                                             <span
-                                                className={`px-3 py-1 text-xs rounded ${
-                                                    match.status === 'inprogress'
+                                                className={`px-3 py-1 text-xs rounded ${match.status === 'inprogress'
                                                         ? 'bg-blue-500/20 text-blue-400'
                                                         : 'bg-slate-500/20 text-slate-400'
-                                                }`}
+                                                    }`}
                                             >
                                                 {match.status === 'inprogress' ? (
                                                     <>
@@ -355,19 +351,18 @@ const TournamentCard = memo(({ tournament }: TournamentCardProps) => {
                     </p>
                 </div>
                 <span
-                    className={`px-3 py-1 text-xs font-medium rounded-full ${
-                        tournament.status === 'published'
+                    className={`px-3 py-1 text-xs font-medium rounded-full ${tournament.status === 'published'
                             ? 'bg-green-500/20 text-green-400'
                             : tournament.status === 'finished'
-                            ? 'bg-slate-500/20 text-slate-400'
-                            : 'bg-yellow-500/20 text-yellow-400'
-                    }`}
+                                ? 'bg-slate-500/20 text-slate-400'
+                                : 'bg-yellow-500/20 text-yellow-400'
+                        }`}
                 >
                     {tournament.status === 'published'
                         ? '公開中'
                         : tournament.status === 'finished'
-                        ? '終了'
-                        : '下書き'}
+                            ? '終了'
+                            : '下書き'}
                 </span>
             </div>
         </Link>

@@ -200,7 +200,7 @@ export default function RolesPage() {
                             {isSaving ? '保存中...' : '保存'}
                         </button>
                     </div>
-                </header>
+                </div>
 
                 {/* Users List */}
                 <div className="space-y-4">

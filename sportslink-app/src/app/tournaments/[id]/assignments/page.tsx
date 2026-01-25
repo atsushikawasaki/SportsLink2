@@ -206,7 +206,7 @@ export default function AssignmentsPage() {
                             {isSaving ? '保存中...' : '保存'}
                         </button>
                     </div>
-                </header>
+                </div>
 
                 {/* Filters */}
                 <div className="mb-6 flex flex-wrap gap-4">
@@ -292,19 +292,18 @@ export default function AssignmentsPage() {
                                     </div>
                                     <div>
                                         <span
-                                            className={`inline-block px-3 py-1 text-xs rounded ${
-                                                match.status === 'finished'
+                                            className={`inline-block px-3 py-1 text-xs rounded ${match.status === 'finished'
                                                     ? 'bg-green-500/20 text-green-400'
                                                     : match.status === 'inprogress'
-                                                    ? 'bg-blue-500/20 text-blue-400'
-                                                    : 'bg-slate-500/20 text-slate-400'
-                                            }`}
+                                                        ? 'bg-blue-500/20 text-blue-400'
+                                                        : 'bg-slate-500/20 text-slate-400'
+                                                }`}
                                         >
                                             {match.status === 'finished'
                                                 ? '終了'
                                                 : match.status === 'inprogress'
-                                                ? '進行中'
-                                                : '待機中'}
+                                                    ? '進行中'
+                                                    : '待機中'}
                                         </span>
                                     </div>
                                 </div>

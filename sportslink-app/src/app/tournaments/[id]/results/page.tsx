@@ -250,7 +250,7 @@ export default function ResultsPage() {
                             <PDFExportButton tournamentId={tournamentId} />
                         </div>
                     </div>
-                </header>
+                </div>
 
                 {/* Filters */}
                 <div className="mb-6 flex flex-wrap gap-4">
@@ -318,7 +318,7 @@ export default function ResultsPage() {
                                     {match.match_scores && (
                                         <div className="flex items-center gap-4">
                                             <span className="text-2xl font-bold text-cyan-400">
-                                                {Array.isArray(match.match_scores) 
+                                                {Array.isArray(match.match_scores)
                                                     ? match.match_scores[0]?.game_count_a || 0
                                                     : match.match_scores.game_count_a || 0}
                                             </span>
@@ -328,15 +328,15 @@ export default function ResultsPage() {
                                                     ? match.match_scores[0]?.game_count_b || 0
                                                     : match.match_scores.game_count_b || 0}
                                             </span>
-                                            {(Array.isArray(match.match_scores) 
+                                            {(Array.isArray(match.match_scores)
                                                 ? match.match_scores[0]?.final_score
                                                 : match.match_scores.final_score) && (
-                                                <span className="text-slate-400 text-sm">
-                                                    ({Array.isArray(match.match_scores)
-                                                        ? match.match_scores[0]?.final_score
-                                                        : match.match_scores.final_score})
-                                                </span>
-                                            )}
+                                                    <span className="text-slate-400 text-sm">
+                                                        ({Array.isArray(match.match_scores)
+                                                            ? match.match_scores[0]?.final_score
+                                                            : match.match_scores.final_score})
+                                                    </span>
+                                                )}
                                         </div>
                                     )}
                                 </div>

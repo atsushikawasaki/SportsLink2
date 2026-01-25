@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, RefreshCw, List, Grid, Edit, Save, X } from 'lucide-react';
-import NotificationCenter from '@/components/NotificationCenter';
+import AppHeader from '@/components/AppHeader';
 import Breadcrumbs from '@/components/Breadcrumbs';
 
 interface MatchSlot {
@@ -272,22 +272,18 @@ export default function DrawPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-12">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                {/* Header */}
-                <header className="bg-slate-800/50 backdrop-blur-xl border-b border-slate-700/50 mb-8">
-                    <div className="flex items-center justify-between py-4">
-                        <Breadcrumbs
-                            items={[
-                                { label: '大会一覧', href: '/tournaments' },
-                                { label: tournament?.name || '大会', href: `/tournaments/${tournamentId}` },
-                                { label: 'ドロー管理' },
-                            ]}
-                        />
-                        <div className="flex items-center gap-4">
-                            <NotificationCenter />
-                        </div>
-                    </div>
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+            <AppHeader />
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                {/* Page Header */}
+                <div className="mb-8">
+                    <Breadcrumbs
+                        items={[
+                            { label: '大会一覧', href: '/tournaments' },
+                            { label: tournament?.name || '大会', href: `/tournaments/${tournamentId}` },
+                            { label: 'ドロー管理' },
+                        ]}
+                    />
                     <div className="flex items-center justify-between mt-4">
                         <div>
                             <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
@@ -313,7 +309,7 @@ export default function DrawPage() {
                             </button>
                         </div>
                     </div>
-                </header>
+                </div>
 
                 {/* Phase Selector */}
                 {phases.length > 1 && (

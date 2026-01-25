@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import AppHeader from '@/components/AppHeader';
 
 const profileSchema = z.object({
     displayName: z.string().min(1, '表示名を入力してください'),
@@ -156,8 +157,9 @@ export default function SettingsPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-12">
-            <div className="max-w-4xl mx-auto px-4">
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+            <AppHeader />
+            <div className="max-w-4xl mx-auto px-4 py-8">
                 <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-700/50 p-8">
                     <div className="mb-8">
                         <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent mb-2">
@@ -507,8 +509,8 @@ export default function SettingsPage() {
                             {/* Logout */}
                             <div className="border-t border-slate-700 pt-8">
                                 <button
-                                    onClick={() => {
-                                        logout();
+                                    onClick={async () => {
+                                        await logout();
                                         router.push('/');
                                     }}
                                     className="px-6 py-3 bg-slate-600 text-white font-semibold rounded-lg shadow-lg hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-800 transition-all duration-200"

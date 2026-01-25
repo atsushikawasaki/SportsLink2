@@ -6,11 +6,35 @@ export async function getMatch(id: string) {
     try {
         const supabase = await createClient();
 
-        // Get match with related data
+        // Get match with all related data in a single query
         const { data: matchData, error: matchError } = await supabase
             .from('matches')
             .select(`
                 *,
+                match_scores(*),
+                match_pairs(
+                    *,
+                    teams:team_id (
+                        id,
+                        name,
+                        team_manager_user_id
+                    ),
+                    tournament_players!match_pairs_player_1_id_fkey (
+                        id,
+                        player_name,
+                        player_type
+                    ),
+                    tournament_players!match_pairs_player_2_id_fkey (
+                        id,
+                        player_name,
+                        player_type
+                    )
+                ),
+                users!matches_umpire_id_fkey (
+                    id,
+                    display_name,
+                    email
+                ),
                 tournaments:tournament_id (
                     id,
                     name,
@@ -25,48 +49,6 @@ export async function getMatch(id: string) {
                 { error: '試合が見つかりません', code: 'E-NOT-FOUND' },
                 { status: 404 }
             );
-        }
-
-        // Get match_scores
-        const { data: scores } = await supabase
-            .from('match_scores')
-            .select('*')
-            .eq('match_id', id)
-            .single();
-
-        // Get match_pairs with teams and players
-        const { data: pairs } = await supabase
-            .from('match_pairs')
-            .select(`
-                *,
-                teams:team_id (
-                    id,
-                    name,
-                    team_manager_user_id
-                ),
-                tournament_players!match_pairs_player_1_id_fkey (
-                    id,
-                    player_name,
-                    player_type
-                ),
-                tournament_players!match_pairs_player_2_id_fkey (
-                    id,
-                    player_name,
-                    player_type
-                )
-            `)
-            .eq('match_id', id)
-            .order('pair_number', { ascending: true });
-
-        // Get umpire info
-        let umpire = null;
-        if (matchData.umpire_id) {
-            const { data: umpireData } = await supabase
-                .from('users')
-                .select('id, display_name, email')
-                .eq('id', matchData.umpire_id)
-                .single();
-            umpire = umpireData;
         }
 
         // If this is a team match (parent), get child matches
@@ -91,11 +73,17 @@ export async function getMatch(id: string) {
             childMatches = children || [];
         }
 
+        // Sort match_pairs by pair_number
+        const sortedPairs = (matchData.match_pairs || []).sort(
+            (a: any, b: any) => (a.pair_number || 0) - (b.pair_number || 0)
+        );
+
         const data = {
             ...matchData,
-            match_scores: scores ? [scores] : [],
-            match_pairs: pairs || [],
-            users: umpire,
+            match_scores: matchData.match_scores || [],
+            match_pairs: sortedPairs,
+            users: matchData.users || null,
+            tournaments: matchData.tournaments || null,
             child_matches: childMatches,
         };
 

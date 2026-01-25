@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
-import NotificationCenter from '@/components/NotificationCenter';
+import AppHeader from '@/components/AppHeader';
+import Breadcrumbs from '@/components/Breadcrumbs';
+import { createClient } from '@/lib/supabase/client';
 
 interface Match {
     id: string;
@@ -35,14 +37,7 @@ export default function LivePage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
-        fetchData();
-        // 5秒ごとに自動更新
-        const interval = setInterval(fetchData, 5000);
-        return () => clearInterval(interval);
-    }, [tournamentId]);
-
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         try {
             setError(null);
 
@@ -65,7 +60,72 @@ export default function LivePage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [tournamentId]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
+
+    // Supabase Realtime購読
+    useEffect(() => {
+        if (!tournamentId) return;
+
+        const supabase = createClient();
+
+        // 試合の変更を購読
+        const matchesChannel = supabase
+            .channel(`tournament:${tournamentId}:matches`)
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'matches',
+                    filter: `tournament_id=eq.${tournamentId}`,
+                },
+                (payload) => {
+                    // 試合ステータス変更時に更新
+                    if (payload.new.status === 'inprogress' || payload.new.status === 'finished') {
+                        fetchData();
+                    }
+                }
+            )
+            .subscribe();
+
+        // スコアの変更を購読
+        const scoresChannel = supabase
+            .channel(`tournament:${tournamentId}:scores`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'match_scores',
+                },
+                (payload) => {
+                    // 該当試合のスコアを更新
+                    setMatches((prev) =>
+                        prev.map((m) =>
+                            m.id === payload.new.match_id
+                                ? {
+                                      ...m,
+                                      match_scores: {
+                                          game_count_a: payload.new.game_count_a,
+                                          game_count_b: payload.new.game_count_b,
+                                      },
+                                  }
+                                : m
+                        )
+                    );
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(matchesChannel);
+            supabase.removeChannel(scoresChannel);
+        };
+    }, [tournamentId, fetchData]);
 
     if (loading) {
         return (
@@ -78,19 +138,26 @@ export default function LivePage() {
     const liveMatches = matches.filter((m) => m.status === 'inprogress' || m.status === 'finished');
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-12">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                {/* Header */}
-                <header className="bg-slate-800/50 backdrop-blur-xl border-b border-slate-700/50 mb-8">
-                    <div className="flex items-center justify-between py-4">
-                        <Link
-                            href={`/tournaments/${tournamentId}`}
-                            className="flex items-center text-slate-400 hover:text-red-400 transition-colors"
-                        >
-                            <ArrowLeft className="w-5 h-5 mr-2" />
-                            大会詳細に戻る
-                        </Link>
-                        <div className="flex items-center gap-4">
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+            <AppHeader />
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                {/* Page Header */}
+                <div className="mb-8">
+                    <Breadcrumbs
+                        items={[
+                            { label: '大会一覧', href: '/tournaments' },
+                            { label: tournament?.name || '大会詳細', href: `/tournaments/${tournamentId}` },
+                            { label: 'リアルタイム観戦' },
+                        ]}
+                    />
+                    <div className="flex items-center justify-between mt-4">
+                        <div>
+                            <h1 className="text-3xl font-bold bg-gradient-to-r from-red-400 to-pink-400 bg-clip-text text-transparent">
+                                リアルタイム観戦
+                            </h1>
+                            {tournament && <p className="text-slate-400 mt-2">{tournament.name}</p>}
+                            <p className="text-slate-500 text-sm mt-1">リアルタイム更新</p>
+                        </div>
                             <button
                                 onClick={fetchData}
                                 className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors"
@@ -98,17 +165,8 @@ export default function LivePage() {
                                 <RefreshCw className="w-4 h-4" />
                                 更新
                             </button>
-                            <NotificationCenter />
-                        </div>
                     </div>
-                    <div className="mt-4">
-                        <h1 className="text-3xl font-bold bg-gradient-to-r from-red-400 to-pink-400 bg-clip-text text-transparent">
-                            リアルタイム観戦
-                        </h1>
-                        {tournament && <p className="text-slate-400 mt-2">{tournament.name}</p>}
-                        <p className="text-slate-500 text-sm mt-1">5秒ごとに自動更新</p>
                     </div>
-                </header>
 
                 {/* Live Matches */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

@@ -40,8 +40,21 @@ export async function getLiveMatches(request: Request) {
         const { data, error, count } = await query;
 
         if (error) {
+            console.error('Get live matches error:', error);
+            // 無限再帰エラーの場合は詳細をログに記録
+            if (error.code === '42P17') {
+                console.error('RLS infinite recursion detected. Please apply migration 014.');
+            }
             return NextResponse.json(
-                { error: error.message, code: 'E-DB-001' },
+                { 
+                    error: error.message, 
+                    code: 'E-DB-001',
+                    details: process.env.NODE_ENV === 'development' ? {
+                        code: error.code,
+                        hint: error.hint,
+                        details: error.details
+                    } : undefined
+                },
                 { status: 500 }
             );
         }

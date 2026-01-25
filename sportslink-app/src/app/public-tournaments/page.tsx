@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Trophy, Search, Filter, Eye } from 'lucide-react';
+import { Trophy, Search, Filter, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 import NotificationCenter from '@/components/NotificationCenter';
 
 interface Tournament {
@@ -27,17 +27,21 @@ export default function PublicTournamentsPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [typeFilter, setTypeFilter] = useState<'all' | 'managed' | 'entered' | 'public'>('all');
     const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'finished' | 'draft'>('all');
+    const [page, setPage] = useState(1);
+    const [totalCount, setTotalCount] = useState(0);
+    const limit = 20;
 
     useEffect(() => {
         fetchTournaments();
-    }, []);
+    }, [page]);
 
     const fetchTournaments = async () => {
         try {
             setLoading(true);
             setError(null);
 
-            const response = await fetch('/api/tournaments?limit=100');
+            const offset = (page - 1) * limit;
+            const response = await fetch(`/api/tournaments?limit=${limit}&offset=${offset}&is_public=true`);
             const result = await response.json();
 
             if (!response.ok) {
@@ -45,9 +49,10 @@ export default function PublicTournamentsPage() {
                 return;
             }
 
-            // 公開大会のみフィルタリング
+            // 公開大会のみフィルタリング（API側でフィルタリングされていない場合のフォールバック）
             const publicTournaments = (result.data || []).filter((t: Tournament) => t.is_public);
             setTournaments(publicTournaments);
+            setTotalCount(result.count || publicTournaments.length);
         } catch (err) {
             console.error('Failed to fetch tournaments:', err);
             setError('大会一覧の取得に失敗しました');
@@ -210,11 +215,43 @@ export default function PublicTournamentsPage() {
                     </div>
                 )}
 
+                {/* Pagination */}
+                {!loading && totalCount > limit && (
+                    <div className="mt-8 pt-6 border-t border-slate-700">
+                        <div className="flex items-center justify-between">
+                            <p className="text-sm text-slate-400">
+                                全{totalCount}大会中、{(page - 1) * limit + 1}〜{Math.min(page * limit, totalCount)}件を表示
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                                    disabled={page === 1}
+                                    className="px-3 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                                >
+                                    <ChevronLeft className="w-4 h-4" />
+                                    前へ
+                                </button>
+                                <span className="px-4 py-2 text-slate-300">
+                                    {page} / {Math.ceil(totalCount / limit)}
+                                </span>
+                                <button
+                                    onClick={() => setPage((p) => Math.min(Math.ceil(totalCount / limit), p + 1))}
+                                    disabled={page >= Math.ceil(totalCount / limit)}
+                                    className="px-3 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                                >
+                                    次へ
+                                    <ChevronRight className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Summary */}
-                {!loading && tournaments.length > 0 && (
+                {!loading && tournaments.length > 0 && totalCount <= limit && (
                     <div className="mt-8 pt-6 border-t border-slate-700">
                         <p className="text-sm text-slate-400 text-center">
-                            全{tournaments.length}大会中、{filteredTournaments.length}大会を表示
+                            全{totalCount}大会中、{filteredTournaments.length}大会を表示
                         </p>
                     </div>
                 )}

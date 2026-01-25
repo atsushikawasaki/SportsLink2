@@ -7,6 +7,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
+import AppHeader from '@/components/AppHeader';
+import Breadcrumbs from '@/components/Breadcrumbs';
 
 const tournamentSchema = z.object({
     name: z.string().min(1, '大会名を入力してください'),
@@ -29,6 +31,7 @@ export default function EditTournamentPage() {
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [tournament, setTournament] = useState<any>(null);
 
     const {
         register,
@@ -55,13 +58,14 @@ export default function EditTournamentPage() {
             }
 
             // Format dates for input fields
-            const tournament = {
+            const tournamentData = {
                 ...result,
                 start_date: result.start_date ? result.start_date.split('T')[0] : '',
                 end_date: result.end_date ? result.end_date.split('T')[0] : '',
             };
 
-            reset(tournament);
+            setTournament(result);
+            reset(tournamentData);
         } catch (err) {
             console.error('Failed to fetch tournament:', err);
             setError('大会の取得に失敗しました');
@@ -105,19 +109,20 @@ export default function EditTournamentPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-12">
-            <div className="max-w-4xl mx-auto px-4">
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+            <AppHeader />
+            <div className="max-w-4xl mx-auto px-4 py-8">
                 <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-700/50 p-8">
-                    {/* Header */}
+                    {/* Page Header */}
                     <div className="mb-8">
-                        <Link
-                            href={`/tournaments/${tournamentId}`}
-                            className="flex items-center text-slate-400 hover:text-blue-400 transition-colors mb-4"
-                        >
-                            <ArrowLeft className="w-5 h-5 mr-2" />
-                            大会詳細に戻る
-                        </Link>
-                        <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+                        <Breadcrumbs
+                            items={[
+                                { label: '大会一覧', href: '/tournaments' },
+                                { label: tournament?.name || '大会詳細', href: `/tournaments/${tournamentId}` },
+                                { label: '大会編集' },
+                            ]}
+                        />
+                        <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent mt-4">
                             大会編集
                         </h1>
                     </div>

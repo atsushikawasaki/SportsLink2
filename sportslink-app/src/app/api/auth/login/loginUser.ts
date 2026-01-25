@@ -2,6 +2,9 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
+import { Database } from '@/types/database.types';
+
+type User = Database['public']['Tables']['users']['Row'];
 
 export async function loginUser(request: Request) {
     try {
@@ -52,11 +55,13 @@ export async function loginUser(request: Request) {
             
             // public.usersテーブルからユーザーを検索
             const adminClient = createAdminClient();
-            const { data: userProfile, error: userError } = await adminClient
+            const { data: userProfileData, error: userError } = await adminClient
                 .from('users')
                 .select('*')
                 .eq('email', normalizedEmail)
                 .single();
+            
+            const userProfile = userProfileData as User | null;
 
             if (userError || !userProfile) {
                 console.error('User not found in users table:', {
@@ -161,6 +166,10 @@ export async function loginUser(request: Request) {
                     const oldUserId = userProfile.id;
                     
                     // データベース関数を使用してID不一致を修正（関連テーブルも自動更新）
+                    type FixResult = {
+                        result_status?: string;
+                        result_affected_tables?: string[];
+                    };
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     const { data: fixResult, error: fixError } = await (adminClient as any)
                         .rpc('fix_single_user_id_mismatch', {
@@ -172,10 +181,9 @@ export async function loginUser(request: Request) {
                         // ID更新に失敗した場合でも続行（外部キー制約の問題がある可能性）
                     } else if (fixResult) {
                         userProfile.id = authUser.id;
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        const result = Array.isArray(fixResult) && fixResult.length > 0 
-                            ? fixResult[0] as any 
-                            : fixResult as any;
+                        const result: FixResult = Array.isArray(fixResult) && fixResult.length > 0 
+                            ? (fixResult[0] as FixResult)
+                            : (fixResult as FixResult);
                         console.log('Fixed user ID mismatch:', {
                             oldId: oldUserId,
                             newId: authUser.id,
@@ -232,7 +240,8 @@ export async function loginUser(request: Request) {
                     });
                     
                     // usersテーブルのIDをSupabase AuthのIDに更新
-                    const { error: updateError } = await adminClient
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const { error: updateError } = await (adminClient as any)
                         .from('users')
                         .update({ id: authUser.id })
                         .eq('id', userProfile.id);
@@ -287,7 +296,9 @@ export async function loginUser(request: Request) {
         }
 
         // Get user profile from users table
-        const { data: userProfile, error: profileError } = await supabase
+        // Admin Clientを使用してRLSをバイパス（ログイン直後はauth.uid()が正しく設定されていない可能性があるため）
+        const adminClient = createAdminClient();
+        const { data: userProfile, error: profileError } = await adminClient
             .from('users')
             .select('*')
             .eq('id', data.user.id)

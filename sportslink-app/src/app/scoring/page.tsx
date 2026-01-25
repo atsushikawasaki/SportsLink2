@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useCallback, memo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import Link from 'next/link';
@@ -51,22 +51,25 @@ export default function ScoringListPage() {
     const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'inprogress' | 'finished'>('all');
     const [tournamentFilter, setTournamentFilter] = useState<string>('all');
 
-    useEffect(() => {
-        if (!isAuthenticated || !user) {
-            router.push('/login');
-            return;
-        }
-
-        fetchMatches();
-    }, [isAuthenticated, user, router]);
-
-    const fetchMatches = async () => {
+    const fetchMatches = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
 
+            // サーバーサイドフィルタリング用のパラメータを構築
+            const params = new URLSearchParams();
+            if (statusFilter !== 'all') {
+                params.append('status', statusFilter);
+            }
+            if (tournamentFilter !== 'all') {
+                params.append('tournament_id', tournamentFilter);
+            }
+            if (searchQuery) {
+                params.append('search', searchQuery);
+            }
+
             // 審判の担当試合一覧を取得
-            const response = await fetch(`/api/matches/umpire/${user.id}`);
+            const response = await fetch(`/api/matches/umpire/${user.id}?${params.toString()}`);
 
             if (!response.ok) {
                 const result = await response.json();
@@ -82,9 +85,18 @@ export default function ScoringListPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [user?.id, statusFilter, tournamentFilter, searchQuery]);
 
-    const getStatusBadge = (status: string) => {
+    useEffect(() => {
+        if (!isAuthenticated || !user) {
+            router.push('/login');
+            return;
+        }
+
+        fetchMatches();
+    }, [isAuthenticated, user, router, fetchMatches]);
+
+    const getStatusBadge = useCallback((status: string) => {
         switch (status) {
             case 'pending':
                 return (
@@ -110,9 +122,9 @@ export default function ScoringListPage() {
             default:
                 return null;
         }
-    };
+    }, []);
 
-    const getTeamNames = (match: Match) => {
+    const getTeamNames = useCallback((match: Match) => {
         const pairs = match.match_pairs || [];
         const teamA = pairs.find((p) => p.pair_number === 1)?.teams;
         const teamB = pairs.find((p) => p.pair_number === 2)?.teams;
@@ -120,48 +132,27 @@ export default function ScoringListPage() {
             teamA: teamA?.name || 'チームA',
             teamB: teamB?.name || 'チームB',
         };
-    };
+    }, []);
 
-    const getScore = (match: Match) => {
+    const getScore = useCallback((match: Match) => {
         const score = match.match_scores?.[0];
         if (!score) return { scoreA: 0, scoreB: 0 };
         return {
             scoreA: score.game_count_a || 0,
             scoreB: score.game_count_b || 0,
         };
-    };
+    }, []);
 
-    // フィルター適用
-    const filteredMatches = matches.filter((match) => {
-        // ステータスフィルター
-        if (statusFilter !== 'all' && match.status !== statusFilter) {
-            return false;
-        }
-
-        // 大会フィルター
-        if (tournamentFilter !== 'all' && match.tournament_id !== tournamentFilter) {
-            return false;
-        }
-
-        // 検索クエリ
-        if (searchQuery) {
-            const query = searchQuery.toLowerCase();
-            const teamNames = getTeamNames(match);
-            const tournamentName = match.tournaments?.name || '';
-            return (
-                match.round_name.toLowerCase().includes(query) ||
-                teamNames.teamA.toLowerCase().includes(query) ||
-                teamNames.teamB.toLowerCase().includes(query) ||
-                tournamentName.toLowerCase().includes(query)
-            );
-        }
-
-        return true;
-    });
+    // サーバーサイドでフィルタリングされているため、フロントエンドでのフィルタリングは不要
+    const filteredMatches = useMemo(() => matches, [matches]);
 
     // 大会一覧（フィルター用）
-    const tournaments = Array.from(
-        new Set(matches.map((m) => ({ id: m.tournament_id, name: m.tournaments?.name || '不明' })))
+    const tournaments = useMemo(
+        () =>
+            Array.from(
+                new Set(matches.map((m) => ({ id: m.tournament_id, name: m.tournaments?.name || '不明' })))
+            ),
+        [matches]
     );
 
     if (!isAuthenticated || !user) {
@@ -272,70 +263,16 @@ export default function ScoringListPage() {
                         </div>
                     ) : (
                         <div className="space-y-4">
-                            {filteredMatches.map((match) => {
-                                const teamNames = getTeamNames(match);
-                                const score = getScore(match);
-
-                                return (
-                                    <div
-                                        key={match.id}
-                                        className="p-6 bg-slate-700/30 rounded-lg border border-slate-600 hover:border-slate-500 transition-all"
-                                    >
-                                        <div className="flex items-center justify-between gap-4">
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-3 mb-2">
-                                                    {getStatusBadge(match.status)}
-                                                    <span className="text-sm text-slate-400">
-                                                        {match.tournaments?.name || '不明な大会'}
-                                                    </span>
-                                                </div>
-                                                <h3 className="text-lg font-semibold text-white mb-2">
-                                                    {match.round_name}
-                                                </h3>
-                                                <div className="grid grid-cols-2 gap-4 mb-3">
-                                                    <div>
-                                                        <p className="text-sm text-slate-400 mb-1">チームA</p>
-                                                        <p className="text-white font-medium">{teamNames.teamA}</p>
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-sm text-slate-400 mb-1">チームB</p>
-                                                        <p className="text-white font-medium">{teamNames.teamB}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-4 text-sm text-slate-400">
-                                                    {match.court_number && (
-                                                        <span>コート: {match.court_number}</span>
-                                                    )}
-                                                    {match.started_at && (
-                                                        <span>
-                                                            開始: {new Date(match.started_at).toLocaleString('ja-JP')}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            <div className="flex flex-col items-end gap-3 flex-shrink-0">
-                                                {/* Score Display */}
-                                                <div className="text-center">
-                                                    <p className="text-xs text-slate-400 mb-1">スコア</p>
-                                                    <div className="text-2xl font-bold text-white">
-                                                        {score.scoreA} - {score.scoreB}
-                                                    </div>
-                                                </div>
-
-                                                {/* Action Button */}
-                                                <button
-                                                    onClick={() => router.push(`/scoring/${match.id}`)}
-                                                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-semibold rounded-lg shadow-lg hover:from-blue-600 hover:to-cyan-600 transition-all duration-200"
-                                                >
-                                                    {match.status === 'finished' ? '結果確認' : 'スコア入力'}
-                                                    <ArrowRight className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                            {filteredMatches.map((match) => (
+                                <MatchCard
+                                    key={match.id}
+                                    match={match}
+                                    getStatusBadge={getStatusBadge}
+                                    getTeamNames={getTeamNames}
+                                    getScore={getScore}
+                                    onNavigate={(matchId) => router.push(`/scoring/${matchId}`)}
+                                />
+                            ))}
                         </div>
                     )}
 

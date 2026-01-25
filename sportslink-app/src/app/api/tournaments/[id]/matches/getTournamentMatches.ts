@@ -6,6 +6,8 @@ export async function getTournamentMatches(id: string, request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const status = searchParams.get('status');
+        const search = searchParams.get('search');
+        const roundFilter = searchParams.get('round');
 
         const supabase = await createClient();
 
@@ -32,8 +34,16 @@ export async function getTournamentMatches(id: string, request: Request) {
             .order('slot_index', { ascending: true })
             .order('match_number', { ascending: true });
 
-        if (status) {
+        if (status && status !== 'all') {
             query = query.eq('status', status);
+        }
+
+        if (roundFilter && roundFilter !== 'all') {
+            query = query.eq('round_name', roundFilter);
+        }
+
+        if (search) {
+            query = query.or(`round_name.ilike.%${search}%`);
         }
 
         const { data, error } = await query;

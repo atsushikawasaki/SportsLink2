@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Edit, Settings, Users, Trophy, Calendar, Play, Award, Eye } from 'lucide-react';
-import NotificationCenter from '@/components/NotificationCenter';
+import AppHeader from '@/components/AppHeader';
 import Breadcrumbs from '@/components/Breadcrumbs';
 
 interface Tournament {
@@ -171,22 +171,18 @@ export default function TournamentDetailPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-12">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                {/* Header */}
-                <header className="bg-slate-800/50 backdrop-blur-xl border-b border-slate-700/50 mb-8">
-                    <div className="flex items-center justify-between py-4">
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+            <AppHeader />
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                {/* Page Header */}
+                <div className="mb-8">
                         <Breadcrumbs
                             items={[
                                 { label: '大会一覧', href: '/tournaments' },
                                 { label: tournament?.name || '大会詳細' },
                             ]}
                         />
-                        <div className="flex items-center gap-4">
-                            <NotificationCenter />
-                        </div>
                     </div>
-                </header>
 
                 {/* Tournament Info */}
                 <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-700/50 p-8 mb-8">

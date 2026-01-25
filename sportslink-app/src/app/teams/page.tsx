@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Users, Plus, Search, Trophy, Award } from 'lucide-react';
-import NotificationCenter from '@/components/NotificationCenter';
+import { Users, Plus, Search, Trophy, Award, ChevronLeft, ChevronRight } from 'lucide-react';
+import AppHeader from '@/components/AppHeader';
 
 interface Team {
     id: string;
@@ -28,6 +28,9 @@ export default function TeamsPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [page, setPage] = useState(1);
+    const [totalCount, setTotalCount] = useState(0);
+    const limit = 20;
 
     useEffect(() => {
         if (!isAuthenticated) {
@@ -36,14 +39,15 @@ export default function TeamsPage() {
         }
 
         fetchTeams();
-    }, [isAuthenticated, router]);
+    }, [isAuthenticated, router, page]);
 
     const fetchTeams = async () => {
         try {
             setLoading(true);
             setError(null);
 
-            const response = await fetch('/api/teams?limit=100');
+            const offset = (page - 1) * limit;
+            const response = await fetch(`/api/teams?limit=${limit}&offset=${offset}`);
             const result = await response.json();
 
             if (!response.ok) {
@@ -52,6 +56,7 @@ export default function TeamsPage() {
             }
 
             setTeams(result.data || []);
+            setTotalCount(result.count || 0);
         } catch (err) {
             console.error('Failed to fetch teams:', err);
             setError('チーム一覧の取得に失敗しました');
@@ -77,25 +82,15 @@ export default function TeamsPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-12">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                {/* Header */}
-                <header className="bg-slate-800/50 backdrop-blur-xl border-b border-slate-700/50 mb-8">
-                    <div className="flex items-center justify-between py-4">
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+            <AppHeader />
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                {/* Page Header */}
+                <div className="mb-8">
                         <h1 className="text-3xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
                             チーム一覧
                         </h1>
-                        <div className="flex items-center gap-4">
-                            <NotificationCenter />
-                            <Link
-                                href="/dashboard"
-                                className="text-slate-400 hover:text-white transition-colors"
-                            >
-                                ダッシュボード
-                            </Link>
-                        </div>
                     </div>
-                </header>
 
                 {/* Search and Actions */}
                 <div className="mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
@@ -176,11 +171,43 @@ export default function TeamsPage() {
                     </div>
                 )}
 
+                {/* Pagination */}
+                {!loading && totalCount > limit && (
+                    <div className="mt-8 pt-6 border-t border-slate-700">
+                        <div className="flex items-center justify-between">
+                            <p className="text-sm text-slate-400">
+                                全{totalCount}チーム中、{(page - 1) * limit + 1}〜{Math.min(page * limit, totalCount)}件を表示
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                                    disabled={page === 1}
+                                    className="px-3 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                                >
+                                    <ChevronLeft className="w-4 h-4" />
+                                    前へ
+                                </button>
+                                <span className="px-4 py-2 text-slate-300">
+                                    {page} / {Math.ceil(totalCount / limit)}
+                                </span>
+                                <button
+                                    onClick={() => setPage((p) => Math.min(Math.ceil(totalCount / limit), p + 1))}
+                                    disabled={page >= Math.ceil(totalCount / limit)}
+                                    className="px-3 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                                >
+                                    次へ
+                                    <ChevronRight className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Summary */}
-                {!loading && teams.length > 0 && (
+                {!loading && teams.length > 0 && totalCount <= limit && (
                     <div className="mt-8 pt-6 border-t border-slate-700">
                         <p className="text-sm text-slate-400 text-center">
-                            全{teams.length}チーム中、{filteredTeams.length}チームを表示
+                            全{totalCount}チーム中、{filteredTeams.length}チームを表示
                         </p>
                     </div>
                 )}

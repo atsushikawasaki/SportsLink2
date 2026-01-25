@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Trophy, Plus, Search, Filter, Calendar } from 'lucide-react';
-import NotificationCenter from '@/components/NotificationCenter';
+import { Trophy, Plus, Search, Filter, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import AppHeader from '@/components/AppHeader';
 import Breadcrumbs from '@/components/Breadcrumbs';
+import { SkeletonGrid } from '@/components/Skeleton';
 
 interface Tournament {
     id: string;
@@ -29,22 +30,35 @@ export default function TournamentsPage() {
     const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'published' | 'finished'>('all');
     const [startDate, setStartDate] = useState<string>('');
     const [endDate, setEndDate] = useState<string>('');
+    const [page, setPage] = useState(1);
+    const [totalCount, setTotalCount] = useState(0);
+    const limit = 20;
 
-    useEffect(() => {
-        if (!isAuthenticated) {
-            router.push('/login');
-            return;
-        }
-
-        fetchTournaments();
-    }, [isAuthenticated, router]);
-
-    const fetchTournaments = async () => {
+    const fetchTournaments = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
 
-            const response = await fetch('/api/tournaments?limit=100');
+            const offset = (page - 1) * limit;
+            const params = new URLSearchParams({
+                limit: limit.toString(),
+                offset: offset.toString(),
+            });
+
+            if (statusFilter !== 'all') {
+                params.append('status', statusFilter);
+            }
+            if (searchQuery) {
+                params.append('search', searchQuery);
+            }
+            if (startDate) {
+                params.append('start_date', startDate);
+            }
+            if (endDate) {
+                params.append('end_date', endDate);
+            }
+
+            const response = await fetch(`/api/tournaments?${params.toString()}`);
             const result = await response.json();
 
             if (!response.ok) {
@@ -53,13 +67,23 @@ export default function TournamentsPage() {
             }
 
             setTournaments(result.data || []);
+            setTotalCount(result.count || 0);
         } catch (err) {
             console.error('Failed to fetch tournaments:', err);
             setError('大会一覧の取得に失敗しました');
         } finally {
             setLoading(false);
         }
-    };
+    }, [page, limit, statusFilter, searchQuery, startDate, endDate]);
+
+    useEffect(() => {
+        if (!isAuthenticated) {
+            router.push('/login');
+            return;
+        }
+
+        fetchTournaments();
+    }, [isAuthenticated, router, fetchTournaments]);
 
     const getStatusBadge = (status: string) => {
         switch (status) {
@@ -85,65 +109,24 @@ export default function TournamentsPage() {
         }
     };
 
-    const filteredTournaments = tournaments.filter((tournament) => {
-        // ステータスフィルター
-        if (statusFilter !== 'all' && tournament.status !== statusFilter) {
-            return false;
-        }
-
-        // 検索クエリ
-        if (searchQuery) {
-            const query = searchQuery.toLowerCase();
-            if (
-                !tournament.name.toLowerCase().includes(query) &&
-                !(tournament.description && tournament.description.toLowerCase().includes(query))
-            ) {
-                return false;
-            }
-        }
-
-        // 日付範囲フィルター
-        if (startDate && tournament.start_date) {
-            if (new Date(tournament.start_date) < new Date(startDate)) {
-                return false;
-            }
-        }
-        if (endDate && tournament.end_date) {
-            if (new Date(tournament.end_date) > new Date(endDate)) {
-                return false;
-            }
-        }
-
-        return true;
-    });
+    // サーバーサイドでフィルタリングされているため、フロントエンドでのフィルタリングは不要
+    const filteredTournaments = useMemo(() => tournaments, [tournaments]);
 
     if (!isAuthenticated) {
         return null;
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-12">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                {/* Header */}
-                <header className="bg-slate-800/50 backdrop-blur-xl border-b border-slate-700/50 mb-8">
-                    <div className="flex items-center justify-between py-4">
-                        <div>
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+            <AppHeader />
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                {/* Page Header */}
+                <div className="mb-8">
                             <Breadcrumbs items={[{ label: '大会一覧' }]} />
                             <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent mt-2">
                                 大会一覧
                             </h1>
                         </div>
-                        <div className="flex items-center gap-4">
-                            <NotificationCenter />
-                            <Link
-                                href="/dashboard"
-                                className="text-slate-400 hover:text-white transition-colors"
-                            >
-                                ダッシュボード
-                            </Link>
-                        </div>
-                    </div>
-                </header>
 
                 {/* Filters and Actions */}
                 <div className="mb-6 space-y-4">
@@ -222,9 +205,7 @@ export default function TournamentsPage() {
 
                 {/* Tournaments List */}
                 {loading ? (
-                    <div className="flex justify-center py-12">
-                        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-400"></div>
-                    </div>
+                    <SkeletonGrid count={6} />
                 ) : error ? (
                     <div className="text-center py-12">
                         <p className="text-red-400 mb-4">{error}</p>
@@ -282,11 +263,43 @@ export default function TournamentsPage() {
                     </div>
                 )}
 
+                {/* Pagination */}
+                {!loading && totalCount > limit && (
+                    <div className="mt-8 pt-6 border-t border-slate-700">
+                        <div className="flex items-center justify-between">
+                            <p className="text-sm text-slate-400">
+                                全{totalCount}大会中、{(page - 1) * limit + 1}〜{Math.min(page * limit, totalCount)}件を表示
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                                    disabled={page === 1}
+                                    className="px-3 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                                >
+                                    <ChevronLeft className="w-4 h-4" />
+                                    前へ
+                                </button>
+                                <span className="px-4 py-2 text-slate-300">
+                                    {page} / {Math.ceil(totalCount / limit)}
+                                </span>
+                                <button
+                                    onClick={() => setPage((p) => Math.min(Math.ceil(totalCount / limit), p + 1))}
+                                    disabled={page >= Math.ceil(totalCount / limit)}
+                                    className="px-3 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                                >
+                                    次へ
+                                    <ChevronRight className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Summary */}
-                {!loading && tournaments.length > 0 && (
+                {!loading && tournaments.length > 0 && totalCount <= limit && (
                     <div className="mt-8 pt-6 border-t border-slate-700">
                         <p className="text-sm text-slate-400 text-center">
-                            全{tournaments.length}大会中、{filteredTournaments.length}大会を表示
+                            全{totalCount}大会中、{filteredTournaments.length}大会を表示
                         </p>
                     </div>
                 )}

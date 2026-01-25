@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Search, Filter, Download, RotateCcw, Edit, CheckCircle } from 'lucide-react';
-import NotificationCenter from '@/components/NotificationCenter';
+import AppHeader from '@/components/AppHeader';
+import Breadcrumbs from '@/components/Breadcrumbs';
 import PDFExportButton from '@/components/PDFExportButton';
 
 interface Match {
@@ -41,11 +42,7 @@ export default function ResultsPage() {
     const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'inprogress' | 'finished'>('all');
     const [roundFilter, setRoundFilter] = useState<string>('all');
 
-    useEffect(() => {
-        fetchData();
-    }, [tournamentId]);
-
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
@@ -57,8 +54,20 @@ export default function ResultsPage() {
                 setTournament(tournamentData);
             }
 
-            // 試合一覧取得（finishedのみ）
-            const matchesRes = await fetch(`/api/tournaments/${tournamentId}/matches?status=finished`);
+            // 試合一覧取得（サーバーサイドフィルタリング）
+            const params = new URLSearchParams();
+            params.append('status', 'finished');
+            if (statusFilter !== 'all') {
+                params.set('status', statusFilter);
+            }
+            if (roundFilter !== 'all') {
+                params.append('round', roundFilter);
+            }
+            if (searchQuery) {
+                params.append('search', searchQuery);
+            }
+
+            const matchesRes = await fetch(`/api/tournaments/${tournamentId}/matches?${params.toString()}`);
             const matchesData = await matchesRes.json();
             if (matchesRes.ok) {
                 setMatches(matchesData.data || []);
@@ -69,9 +78,13 @@ export default function ResultsPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [tournamentId, statusFilter, roundFilter, searchQuery]);
 
-    const handleRevert = async (matchId: string) => {
+    useEffect(() => {
+        fetchData();
+    }, [fetchData, statusFilter, roundFilter, searchQuery]);
+
+    const handleRevert = useCallback(async (matchId: string) => {
         if (!confirm('この操作により、スコアの修正が可能になります。確定済みの試合も差し戻せます。続行しますか？')) {
             return;
         }
@@ -92,9 +105,9 @@ export default function ResultsPage() {
         } catch (err) {
             alert('試合の差し戻しに失敗しました');
         }
-    };
+    }, [fetchData]);
 
-    const handleConfirm = async (matchId: string) => {
+    const handleConfirm = useCallback(async (matchId: string) => {
         if (!confirm('試合を確定しますか？確定後はスコアの変更ができなくなります。')) {
             return;
         }
@@ -115,9 +128,9 @@ export default function ResultsPage() {
         } catch (err) {
             alert('試合の確定に失敗しました');
         }
-    };
+    }, [fetchData]);
 
-    const handleDirectScoreEdit = async (matchId: string) => {
+    const handleDirectScoreEdit = useCallback(async (matchId: string) => {
         const match = matches.find((m) => m.id === matchId);
         if (match?.is_confirmed) {
             alert('確定済みの試合はスコアを修正できません。先に差し戻してください。');
@@ -156,9 +169,9 @@ export default function ResultsPage() {
         } catch (err) {
             alert('スコアの修正に失敗しました');
         }
-    };
+    }, [matches, fetchData]);
 
-    const handleCSVExport = async () => {
+    const handleCSVExport = useCallback(async () => {
         try {
             const response = await fetch(`/api/tournaments/${tournamentId}/results/export`);
             if (!response.ok) {
@@ -189,28 +202,14 @@ export default function ResultsPage() {
         } catch (err) {
             alert('CSVエクスポートに失敗しました');
         }
-    };
+    }, [tournamentId]);
 
-    const filteredMatches = matches.filter((match) => {
-        if (searchQuery) {
-            const query = searchQuery.toLowerCase();
-            const roundMatch = match.round_name.toLowerCase().includes(query);
-            const teamAMatch = match.match_pairs?.[0]?.teams?.name?.toLowerCase().includes(query);
-            const teamBMatch = match.match_pairs?.[1]?.teams?.name?.toLowerCase().includes(query);
-            if (!roundMatch && !teamAMatch && !teamBMatch) {
-                return false;
-            }
-        }
-        if (statusFilter !== 'all' && match.status !== statusFilter) {
-            return false;
-        }
-        if (roundFilter !== 'all' && match.round_name !== roundFilter) {
-            return false;
-        }
-        return true;
-    });
+    // サーバーサイドでフィルタリングされているため、フロントエンドでのフィルタリングは不要
+    const filteredMatches = useMemo(() => matches, [matches]);
 
-    const uniqueRounds = Array.from(new Set(matches.map((m) => m.round_name)));
+    const uniqueRounds = useMemo(() => {
+        return Array.from(new Set(matches.map((m) => m.round_name)));
+    }, [matches]);
 
     if (loading) {
         return (
@@ -221,22 +220,18 @@ export default function ResultsPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-12">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                {/* Header */}
-                <header className="bg-slate-800/50 backdrop-blur-xl border-b border-slate-700/50 mb-8">
-                    <div className="flex items-center justify-between py-4">
-                        <Link
-                            href={`/tournaments/${tournamentId}`}
-                            className="flex items-center text-slate-400 hover:text-cyan-400 transition-colors"
-                        >
-                            <ArrowLeft className="w-5 h-5 mr-2" />
-                            大会詳細に戻る
-                        </Link>
-                        <div className="flex items-center gap-4">
-                            <NotificationCenter />
-                        </div>
-                    </div>
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+            <AppHeader />
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                {/* Page Header */}
+                <div className="mb-8">
+                    <Breadcrumbs
+                        items={[
+                            { label: '大会一覧', href: '/tournaments' },
+                            { label: tournament?.name || '大会詳細', href: `/tournaments/${tournamentId}` },
+                            { label: '試合結果' },
+                        ]}
+                    />
                     <div className="flex items-center justify-between mt-4">
                         <div>
                             <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">

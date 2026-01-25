@@ -7,6 +7,7 @@ import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { useNotificationStore } from '@/features/notifications/hooks/useNotificationStore';
 import { ArrowLeft, Undo2, Wifi, WifiOff, Pause, Play } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
+import { createClient } from '@/lib/supabase/client';
 
 interface Team {
     id: string;
@@ -124,6 +125,69 @@ export default function ScoringPage() {
         return () => resetMatch();
     }, [fetchMatch, resetMatch]);
 
+    // Supabase Realtime購読
+    useEffect(() => {
+        if (!matchId) return;
+
+        const supabase = createClient();
+
+        // スコア変更を購読
+        const scoreChannel = supabase
+            .channel(`match:${matchId}:score`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'match_scores',
+                    filter: `match_id=eq.${matchId}`,
+                },
+                (payload) => {
+                    // スコア更新を反映
+                    if (payload.new) {
+                        updateScore(
+                            payload.new.game_count_a || 0,
+                            payload.new.game_count_b || 0,
+                            currentScoreA,
+                            currentScoreB
+                        );
+                    }
+                }
+            )
+            .subscribe();
+
+        // 試合ステータス変更を購読
+        const matchChannel = supabase
+            .channel(`match:${matchId}:status`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'matches',
+                    filter: `id=eq.${matchId}`,
+                },
+                (payload) => {
+                    // 試合ステータス更新を反映
+                    if (payload.new) {
+                        setMatch((prev) => (prev ? { ...prev, ...payload.new } : null));
+                        setMatchState({
+                            matchId: payload.new.id,
+                            matchStatus: payload.new.status,
+                            serverVersion: payload.new.version || 1,
+                        });
+                        setIsPaused(payload.new.status === 'paused');
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(scoreChannel);
+            supabase.removeChannel(matchChannel);
+        };
+    }, [matchId, updateScore, setMatchState, currentScoreA, currentScoreB]);
+
     const handleAddPoint = async (pointType: 'A_score' | 'B_score') => {
         if (matchStatus !== 'inprogress' || isPaused) return;
 
@@ -153,7 +217,20 @@ export default function ScoringPage() {
             });
 
             if (response.ok) {
-                fetchMatch();
+                const result = await response.json();
+                // レスポンスに最新スコアが含まれている場合、それを使用
+                if (result.match_scores) {
+                    updateScore(
+                        result.match_scores.game_count_a || 0,
+                        result.match_scores.game_count_b || 0,
+                        currentScoreA,
+                        currentScoreB
+                    );
+                    // Realtimeで更新されるため、fetchMatch()は不要
+                } else {
+                    // フォールバック: スコアが含まれていない場合は再取得
+                    fetchMatch();
+                }
             } else if (response.status === 409) {
                 // Conflict - refetch latest state
                 fetchMatch();

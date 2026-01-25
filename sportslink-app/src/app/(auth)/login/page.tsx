@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { loginSchema, type LoginInput } from '@/features/auth/types/schemas';
@@ -11,8 +11,15 @@ import Link from 'next/link';
 export default function LoginPage() {
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
-    const { setUser, setAccessToken } = useAuthStore();
+    const { setUser, setAccessToken, isAuthenticated, isLoading: authLoading } = useAuthStore();
     const router = useRouter();
+
+    // 既にログインしている場合はダッシュボードにリダイレクト
+    useEffect(() => {
+        if (!authLoading && isAuthenticated) {
+            router.push('/dashboard');
+        }
+    }, [isAuthenticated, authLoading, router]);
 
     const {
         register,

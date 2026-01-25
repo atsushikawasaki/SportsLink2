@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Tables } from '@/types/database.types';
+import { createClient } from '@/lib/supabase/client';
 
 type User = Tables<'users'>;
 
@@ -12,7 +13,7 @@ interface AuthState {
     setUser: (user: User | null) => void;
     setAccessToken: (token: string | null) => void;
     setLoading: (loading: boolean) => void;
-    logout: () => void;
+    logout: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -25,7 +26,17 @@ export const useAuthStore = create<AuthState>()(
             setUser: (user) => set({ user, isAuthenticated: !!user }),
             setAccessToken: (token) => set({ accessToken: token }),
             setLoading: (loading) => set({ isLoading: loading }),
-            logout: () => set({ user: null, isAuthenticated: false, accessToken: null }),
+            logout: async () => {
+                // Supabaseのセッションをクリア
+                try {
+                    const supabase = createClient();
+                    await supabase.auth.signOut();
+                } catch (error) {
+                    console.error('Error signing out from Supabase:', error);
+                }
+                // ストアの状態をクリア
+                set({ user: null, isAuthenticated: false, accessToken: null });
+            },
         }),
         {
             name: 'auth-storage',

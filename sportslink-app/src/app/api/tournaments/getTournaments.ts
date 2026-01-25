@@ -8,6 +8,9 @@ export async function getTournaments(request: Request) {
         const limit = parseInt(searchParams.get('limit') || '10');
         const offset = parseInt(searchParams.get('offset') || '0');
         const status = searchParams.get('status');
+        const search = searchParams.get('search');
+        const startDate = searchParams.get('start_date');
+        const endDate = searchParams.get('end_date');
 
         const supabase = await createClient();
 
@@ -17,8 +20,20 @@ export async function getTournaments(request: Request) {
             .order('created_at', { ascending: false })
             .range(offset, offset + limit - 1);
 
-        if (status) {
+        if (status && status !== 'all') {
             query = query.eq('status', status);
+        }
+
+        if (search) {
+            query = query.or(`name.ilike.%${search}%,description.ilike.%${search}%`);
+        }
+
+        if (startDate) {
+            query = query.gte('start_date', startDate);
+        }
+
+        if (endDate) {
+            query = query.lte('end_date', endDate);
         }
 
         const { data, error, count } = await query;

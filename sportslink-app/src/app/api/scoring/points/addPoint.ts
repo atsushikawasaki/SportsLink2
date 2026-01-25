@@ -72,7 +72,26 @@ export async function addPoint(request: Request) {
             .update({ version: match.version + 1 })
             .eq('id', match_id);
 
-        return NextResponse.json({ point, newVersion: match.version + 1 }, { status: 201 });
+        // Get updated match scores
+        const { data: matchScores } = await supabase
+            .from('match_scores')
+            .select('*')
+            .eq('match_id', match_id)
+            .single();
+
+        return NextResponse.json(
+            {
+                point,
+                newVersion: match.version + 1,
+                match_scores: matchScores
+                    ? {
+                          game_count_a: matchScores.game_count_a,
+                          game_count_b: matchScores.game_count_b,
+                      }
+                    : null,
+            },
+            { status: 201 }
+        );
     } catch (error) {
         console.error('Add point error:', error);
         return NextResponse.json(

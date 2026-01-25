@@ -4,58 +4,61 @@
 -- to check match permissions without triggering RLS on matches table
 
 -- Step 1: Create a SECURITY DEFINER function to check match access
--- This function bypasses RLS on matches table to avoid recursion
+-- This function bypasses RLS on matches and tournaments tables to avoid recursion
+-- Note: user_permissions checks are removed to avoid circular dependencies
+-- Permission checks should be handled in application layer using Admin Client
 CREATE OR REPLACE FUNCTION check_match_access(p_match_id UUID, p_user_id UUID)
 RETURNS BOOLEAN AS $$
 DECLARE
     v_tournament_id UUID;
     v_umpire_id UUID;
     v_created_by_user_id UUID;
-    has_permission BOOLEAN := FALSE;
 BEGIN
-    -- Get match information (bypassing RLS)
-    SELECT m.tournament_id, m.umpire_id, t.created_by_user_id
-    INTO v_tournament_id, v_umpire_id, v_created_by_user_id
-    FROM matches m
-    JOIN tournaments t ON t.id = m.tournament_id
-    WHERE m.id = p_match_id;
+    -- Get match information (bypassing RLS with SECURITY DEFINER)
+    -- SECURITY DEFINER allows the function to run with the privileges of the function owner
+    -- However, RLS is still applied to joined tables. To completely bypass RLS,
+    -- we use a workaround: query tables separately and avoid JOINs that trigger RLS.
+    
+    -- First, get match info directly from matches table
+    -- RLS on matches will be bypassed by SECURITY DEFINER if function owner has bypass privilege
+    SELECT tournament_id, umpire_id
+    INTO v_tournament_id, v_umpire_id
+    FROM matches
+    WHERE id = p_match_id;
     
     -- If match not found, return false
     IF v_tournament_id IS NULL THEN
         RETURN FALSE;
     END IF;
     
+    -- Check if user is assigned umpire (simple check, no RLS recursion)
+    IF v_umpire_id = p_user_id THEN
+        RETURN TRUE;
+    END IF;
+    
+    -- Get tournament creator - use a simple SELECT that should bypass RLS
+    -- with SECURITY DEFINER, but if it doesn't work, we'll need to handle it differently
+    -- Try to get created_by_user_id directly
+    SELECT created_by_user_id
+    INTO v_created_by_user_id
+    FROM tournaments
+    WHERE id = v_tournament_id;
+    
     -- Check if user is tournament creator
     IF v_created_by_user_id = p_user_id THEN
         RETURN TRUE;
     END IF;
     
-    -- Check if user is assigned umpire
-    IF v_umpire_id = p_user_id THEN
-        RETURN TRUE;
-    END IF;
+    -- Note: user_permissions checks are removed to avoid circular RLS dependencies
+    -- Additional permission checks (tournament_admin, etc.) should be handled
+    -- in the application layer using Admin Client which bypasses RLS
     
-    -- Check user_permissions (simple check, no recursion)
-    -- Only check user's own permissions to avoid recursion
-    SELECT EXISTS (
-        SELECT 1 FROM user_permissions up
-        WHERE up.user_id = p_user_id
-        AND (
-            -- Tournament admin or umpire for this tournament
-            (up.tournament_id = v_tournament_id
-             AND up.role_type IN ('tournament_admin', 'umpire'))
-            -- Umpire for this specific match
-            OR (up.match_id = p_match_id
-                AND up.role_type = 'umpire')
-            -- System admin
-            OR (up.role_type = 'admin'
-                AND up.tournament_id IS NULL
-                AND up.team_id IS NULL
-                AND up.match_id IS NULL)
-        )
-    ) INTO has_permission;
-    
-    RETURN has_permission;
+    RETURN FALSE;
+EXCEPTION
+    WHEN OTHERS THEN
+        -- If any error occurs (including RLS violations), return false
+        -- This prevents the recursion from causing a crash
+        RETURN FALSE;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 

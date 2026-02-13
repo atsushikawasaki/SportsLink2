@@ -1,16 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { ArrowLeft, Users, UserPlus, Plus, Upload, Download, CheckCircle, XCircle } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useParams } from 'next/navigation';
+import { Plus, Upload, Download, CheckCircle, XCircle, Search } from 'lucide-react';
 import AppHeader from '@/components/AppHeader';
 import Breadcrumbs from '@/components/Breadcrumbs';
 
 interface Team {
     id: string;
     name: string;
-    school_name: string;
     tournament_players?: Array<{
         id: string;
         player_name: string;
@@ -20,37 +18,78 @@ interface Team {
 
 interface Entry {
     id: string;
-    entry_type: 'team' | 'pair';
+    entry_type: 'team' | 'doubles' | 'singles';
     is_checked_in: boolean;
     day_token: string | null;
     last_checked_in_at: string | null;
+    region_name?: string | null;
+    custom_display_name?: string | null;
     teams?: Team;
-    tournament_pairs?: any;
+    tournament_pairs?: {
+        id: string;
+        player_1_id?: string;
+        player_2_id?: string | null;
+        player_1?: { player_name: string };
+        player_2?: { player_name: string } | null;
+    } | null;
+}
+
+type MatchFormat = 'team_doubles_3' | 'team_doubles_4_singles_1' | 'individual_doubles' | 'individual_singles' | null;
+
+interface TournamentBasic {
+    id: string;
+    name: string;
+    match_format?: MatchFormat;
 }
 
 export default function EntriesPage() {
     const params = useParams();
-    const router = useRouter();
     const tournamentId = params.id as string;
 
-    const [tournament, setTournament] = useState<any>(null);
+    const [tournament, setTournament] = useState<TournamentBasic | null>(null);
     const [teams, setTeams] = useState<Team[]>([]);
     const [entries, setEntries] = useState<Entry[]>([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<'teams' | 'entries' | 'checkin'>('teams');
+    const [fetchError, setFetchError] = useState<string | null>(null);
+    const [activeTab, setActiveTab] = useState<'teams' | 'entries'>('teams');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchQueryDisplay, setSearchQueryDisplay] = useState('');
     const [showTeamModal, setShowTeamModal] = useState(false);
     const [showPlayerModal, setShowPlayerModal] = useState(false);
     const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
+    const [playerForm, setPlayerForm] = useState({
+        entryKind: 'singles' as 'singles' | 'doubles',
+        region_name: '',
+        player1_name: '',
+        player1_affiliation: '',
+        player2_name: '',
+        player2_affiliation: '',
+    });
+    const [teamEntryRegion, setTeamEntryRegion] = useState('');
+    const [entrySubmitLoading, setEntrySubmitLoading] = useState(false);
+    const [entrySubmitError, setEntrySubmitError] = useState<string | null>(null);
 
-    useEffect(() => {
-        fetchData();
-    }, [tournamentId]);
+    const filteredEntries = useMemo(() => {
+        if (!searchQuery.trim()) return entries;
+        const q = searchQuery.trim().toLowerCase();
+        return entries.filter((entry) => {
+            const teamName = entry.teams?.name?.toLowerCase() ?? '';
+            const regionName = (entry.region_name ?? '').toLowerCase();
+            const p1 = entry.tournament_pairs?.player_1?.player_name?.toLowerCase() ?? '';
+            const p2 = entry.tournament_pairs?.player_2?.player_name?.toLowerCase() ?? '';
+            return (
+                teamName.includes(q) ||
+                regionName.includes(q) ||
+                p1.includes(q) ||
+                p2.includes(q)
+            );
+        });
+    }, [entries, searchQuery]);
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         try {
             setLoading(true);
-            setError(null);
+            setFetchError(null);
 
             // 大会情報取得
             const tournamentRes = await fetch(`/api/tournaments/${tournamentId}`);
@@ -72,19 +111,30 @@ export default function EntriesPage() {
             if (entriesRes.ok) {
                 setEntries(entriesData.data || []);
             }
-        } catch (err) {
-            console.error('Failed to fetch data:', err);
-            setError('データの取得に失敗しました');
+        } catch (e) {
+            console.error('Failed to fetch data:', e);
+            setFetchError('データの取得に失敗しました');
         } finally {
             setLoading(false);
         }
-    };
+    }, [tournamentId]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
 
     const handleCSVExport = async () => {
         try {
             const response = await fetch(`/api/tournaments/${tournamentId}/entries/export`);
             if (!response.ok) {
-                alert('CSVエクスポートに失敗しました');
+                // エラーレスポンスをJSONとして読み取る
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    const errorData = await response.json();
+                    alert(`CSVエクスポートに失敗しました: ${errorData.error || '不明なエラー'}`);
+                } else {
+                    alert(`CSVエクスポートに失敗しました (ステータス: ${response.status})`);
+                }
                 return;
             }
 
@@ -98,7 +148,8 @@ export default function EntriesPage() {
             window.URL.revokeObjectURL(url);
             document.body.removeChild(a);
         } catch (err) {
-            alert('CSVエクスポートに失敗しました');
+            console.error('CSV export error:', err);
+            alert(`CSVエクスポートに失敗しました: ${err instanceof Error ? err.message : '不明なエラー'}`);
         }
     };
 
@@ -117,13 +168,21 @@ export default function EntriesPage() {
 
             const result = await response.json();
             if (!response.ok) {
+                // バリデーションエラーの場合は詳細を表示
+                if (result.validationErrors && Array.isArray(result.validationErrors)) {
+                    const errorMessages = result.validationErrors
+                        .map((err: { row: number; message: string }) => `行${err.row}: ${err.message}`)
+                        .join('\n');
+                    alert(`CSVファイルにバリデーションエラーがあります:\n\n${errorMessages}`);
+                } else {
                 alert(result.error || 'CSVインポートに失敗しました');
+                }
                 return;
             }
 
             alert('CSVインポートが完了しました');
             fetchData();
-        } catch (err) {
+        } catch {
             alert('CSVインポートに失敗しました');
         }
     };
@@ -140,7 +199,7 @@ export default function EntriesPage() {
                 return;
             }
 
-            // 通知センターに認証キーを追加
+            // 認証キーは通知センターに1回だけ表示（alertでは出さない）
             if (result.day_token) {
                 const { useNotificationStore } = await import('@/features/notifications/hooks/useNotificationStore');
                 const { addNotification } = useNotificationStore.getState();
@@ -155,10 +214,88 @@ export default function EntriesPage() {
                 });
             }
 
-            alert(`チェックイン完了！認証キー: ${result.day_token}`);
+            alert('チェックイン完了しました');
             fetchData();
-        } catch (err) {
+        } catch {
             alert('チェックインに失敗しました');
+        }
+    };
+
+    const isTeamMatch = tournament?.match_format === 'team_doubles_3' || tournament?.match_format === 'team_doubles_4_singles_1';
+    const isSinglesOnly = tournament?.match_format === 'individual_singles';
+    const isDoublesOnly = tournament?.match_format === 'individual_doubles' || tournament?.match_format === 'team_doubles_3';
+    const isMixedFormat = tournament?.match_format === 'team_doubles_4_singles_1';
+
+    const handleSubmitTeamEntry = async () => {
+        if (!selectedTeam) return;
+        setEntrySubmitError(null);
+        setEntrySubmitLoading(true);
+        try {
+            const res = await fetch(`/api/tournaments/${tournamentId}/entries`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    entry_type: 'team',
+                    team_id: selectedTeam.id,
+                    region_name: teamEntryRegion.trim() || null,
+                }),
+            });
+            const result = await res.json();
+            if (!res.ok) {
+                setEntrySubmitError(result.error || 'エントリーの追加に失敗しました');
+                return;
+            }
+            setShowPlayerModal(false);
+            setSelectedTeam(null);
+            setTeamEntryRegion('');
+            fetchData();
+        } catch {
+            setEntrySubmitError('エントリーの追加に失敗しました');
+        } finally {
+            setEntrySubmitLoading(false);
+        }
+    };
+
+    const handleSubmitPairEntry = async () => {
+        if (!selectedTeam) return;
+        const { entryKind, region_name, player1_name, player1_affiliation, player2_name, player2_affiliation } = playerForm;
+        if (!player1_name.trim()) {
+            setEntrySubmitError('選手1氏名を入力してください');
+            return;
+        }
+        if (entryKind === 'doubles' && !player2_name.trim()) {
+            setEntrySubmitError('選手2氏名を入力してください');
+            return;
+        }
+        setEntrySubmitError(null);
+        setEntrySubmitLoading(true);
+        try {
+            const res = await fetch(`/api/tournaments/${tournamentId}/entries`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    entry_type: entryKind,
+                    team_id: selectedTeam.id,
+                    region_name: region_name.trim() || null,
+                    player1_name: player1_name.trim(),
+                    player1_affiliation: player1_affiliation.trim() || selectedTeam.name,
+                    player2_name: entryKind === 'doubles' ? player2_name.trim() : undefined,
+                    player2_affiliation: entryKind === 'doubles' ? (player2_affiliation.trim() || selectedTeam.name) : undefined,
+                }),
+            });
+            const result = await res.json();
+            if (!res.ok) {
+                setEntrySubmitError(result.error || 'エントリーの追加に失敗しました');
+                return;
+            }
+            setShowPlayerModal(false);
+            setSelectedTeam(null);
+            setPlayerForm({ entryKind: 'singles', region_name: '', player1_name: '', player1_affiliation: '', player2_name: '', player2_affiliation: '' });
+            fetchData();
+        } catch {
+            setEntrySubmitError('エントリーの追加に失敗しました');
+        } finally {
+            setEntrySubmitLoading(false);
         }
     };
 
@@ -189,6 +326,12 @@ export default function EntriesPage() {
                     {tournament && <p className="text-slate-400 mt-2">{tournament.name}</p>}
                 </div>
 
+                {fetchError && (
+                    <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+                        <p className="text-red-400">{fetchError}</p>
+                    </div>
+                )}
+
                 {/* Tabs */}
                 <div className="mb-6 flex gap-2 border-b border-slate-700">
                     <button
@@ -199,7 +342,7 @@ export default function EntriesPage() {
                                 : 'text-slate-400 hover:text-white'
                         }`}
                     >
-                        チーム管理
+                        管理
                     </button>
                     <button
                         onClick={() => setActiveTab('entries')}
@@ -209,19 +352,58 @@ export default function EntriesPage() {
                                 : 'text-slate-400 hover:text-white'
                         }`}
                     >
-                        エントリー一覧
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('checkin')}
-                        className={`px-4 py-2 font-medium transition-colors ${
-                            activeTab === 'checkin'
-                                ? 'text-blue-400 border-b-2 border-blue-400'
-                                : 'text-slate-400 hover:text-white'
-                        }`}
-                    >
-                        当日受付
+                        一覧
                     </button>
                 </div>
+
+                {/* 検索・件数（エントリータブ） */}
+                {activeTab === 'entries' && (
+                    <div className="mb-4 flex flex-wrap items-center gap-4">
+                        <div className="relative max-w-md flex-1 min-w-0">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <input
+                                type="text"
+                                placeholder="チーム名・選手名・地域名で検索"
+                                value={searchQueryDisplay}
+                                onChange={(e) => {
+                                    const v = e.target.value;
+                                    setSearchQueryDisplay(v);
+                                    if (!(e.nativeEvent as InputEvent).isComposing) {
+                                        setSearchQuery(v);
+                                    }
+                                }}
+                                onCompositionEnd={(e) => {
+                                    const committed = e.currentTarget.value;
+                                    setSearchQuery(committed);
+                                    setSearchQueryDisplay(committed);
+                                }}
+                                className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                        </div>
+                        {/* 件数は常に表示 */}
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                            {searchQuery.trim() ? (
+                                <>
+                                    <span className="text-sm text-slate-300">
+                                        <span className="text-blue-400 font-medium">{filteredEntries.length}</span> 件 / 全 {entries.length} 件
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setSearchQuery('');
+                                            setSearchQueryDisplay('');
+                                        }}
+                                        className="text-sm text-slate-400 hover:text-white underline"
+                                    >
+                                        検索をクリア
+                                    </button>
+                                </>
+                            ) : (
+                                <span className="text-sm text-slate-400">全 {entries.length} 件</span>
+                            )}
+                        </div>
+                    </div>
+                )}
 
                 {/* Actions */}
                 <div className="mb-6 flex flex-wrap gap-4">
@@ -266,7 +448,7 @@ export default function EntriesPage() {
                                 className="p-6 bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50"
                             >
                                 <h3 className="text-xl font-semibold text-white mb-2">{team.name}</h3>
-                                <p className="text-slate-400 text-sm mb-4">{team.school_name}</p>
+                                <p className="text-slate-400 text-sm mb-4">代表チーム</p>
                                 <div className="mb-4">
                                     <p className="text-slate-300 text-sm mb-2">
                                         選手数: {team.tournament_players?.length || 0}名
@@ -284,11 +466,25 @@ export default function EntriesPage() {
                                 <button
                                     onClick={() => {
                                         setSelectedTeam(team);
+                                        setEntrySubmitError(null);
+                                        setTeamEntryRegion('');
+                                        const kind: 'singles' | 'doubles' =
+                                            tournament?.match_format === 'individual_doubles' || tournament?.match_format === 'team_doubles_3'
+                                                ? 'doubles'
+                                                : 'singles';
+                                        setPlayerForm({
+                                            entryKind: kind,
+                                            region_name: '',
+                                            player1_name: '',
+                                            player1_affiliation: team.name,
+                                            player2_name: '',
+                                            player2_affiliation: '',
+                                        });
                                         setShowPlayerModal(true);
                                     }}
                                     className="w-full px-4 py-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors text-sm"
                                 >
-                                    選手追加
+                                    {isTeamMatch ? 'チームをエントリーに追加' : '選手追加'}
                                 </button>
                             </div>
                         ))}
@@ -297,44 +493,19 @@ export default function EntriesPage() {
 
                 {activeTab === 'entries' && (
                     <div className="space-y-4">
-                        {entries.map((entry) => (
-                            <div
-                                key={entry.id}
-                                className="p-4 bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50"
-                            >
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="text-white font-medium">
-                                            {entry.entry_type === 'team'
-                                                ? entry.teams?.name
-                                                : 'ペアエントリー'}
-                                        </p>
-                                        <p className="text-slate-400 text-sm">
-                                            {entry.entry_type === 'team' ? entry.teams?.school_name : ''}
-                                        </p>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        {entry.is_checked_in ? (
-                                            <span className="flex items-center gap-1 text-green-400 text-sm">
-                                                <CheckCircle className="w-4 h-4" />
-                                                チェックイン済み
-                                            </span>
-                                        ) : (
-                                            <span className="flex items-center gap-1 text-slate-400 text-sm">
-                                                <XCircle className="w-4 h-4" />
-                                                未チェックイン
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
+                        {searchQuery.trim() && (
+                            <p className="text-sm text-slate-400">
+                                検索結果のみ表示しています（フィルター中）
+                            </p>
+                        )}
+                        {filteredEntries.length === 0 ? (
+                            <div className="p-8 bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50 text-center text-slate-400">
+                                {searchQuery.trim()
+                                    ? '検索条件に一致するエントリーがありません。検索をクリアしてください。'
+                                    : 'エントリーがありません。'}
                             </div>
-                        ))}
-                    </div>
-                )}
-
-                {activeTab === 'checkin' && (
-                    <div className="space-y-4">
-                        {entries.map((entry) => (
+                        ) : (
+                            filteredEntries.map((entry) => (
                             <div
                                 key={entry.id}
                                 className="p-4 bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50"
@@ -344,7 +515,19 @@ export default function EntriesPage() {
                                         <p className="text-white font-medium">
                                             {entry.entry_type === 'team'
                                                 ? entry.teams?.name
-                                                : 'ペアエントリー'}
+                                                    : (() => {
+                                                        const p1 = entry.tournament_pairs?.player_1?.player_name;
+                                                        const p2 = entry.tournament_pairs?.player_2?.player_name;
+                                                        if (p1 && p2) return `${p1} ・ ${p2}`;
+                                                        if (p1) return p1;
+                                                        return entry.custom_display_name ?? 'エントリー';
+                                                    })()}
+                                            </p>
+                                            <p className="text-slate-400 text-sm">
+                                                {entry.teams?.name && <span>代表: {entry.teams.name}</span>}
+                                                {entry.teams?.name && entry.region_name && ' ・ '}
+                                                {entry.region_name && <span>{entry.region_name}</span>}
+                                                {!entry.teams?.name && !entry.region_name && '\u00A0'}
                                         </p>
                                         {entry.is_checked_in && entry.day_token && (
                                             <p className="text-blue-400 text-sm mt-1">
@@ -360,11 +543,15 @@ export default function EntriesPage() {
                                             チェックイン
                                         </button>
                                     ) : (
-                                        <span className="text-green-400 text-sm">✓ チェックイン済み</span>
+                                            <span className="flex items-center gap-1 text-green-400 text-sm">
+                                                <CheckCircle className="w-4 h-4" />
+                                                チェックイン済み
+                                            </span>
                                     )}
                                 </div>
                             </div>
-                        ))}
+                            ))
+                        )}
                     </div>
                 )}
 
@@ -384,28 +571,139 @@ export default function EntriesPage() {
                     </div>
                 )}
 
-                {/* Player Modal (簡易版) */}
+                {/* Player / Team Entry Modal */}
                 {showPlayerModal && selectedTeam && (
                     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                        <div className="bg-slate-800 rounded-xl p-6 max-w-md w-full mx-4">
-                            <h2 className="text-xl font-semibold text-white mb-4">
-                                選手追加 - {selectedTeam.name}
-                            </h2>
-                            <Link
-                                href={`/teams/${selectedTeam.id}/players/new`}
-                                className="block w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-center mb-2"
-                            >
-                                選手登録画面へ
-                            </Link>
+                        <div className="bg-slate-800 rounded-xl p-6 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
+                            {isTeamMatch ? (
+                                <>
+                                    <h2 className="text-xl font-semibold text-white mb-4">チームをエントリーに追加</h2>
+                                    <p className="text-slate-400 text-sm mb-2">代表チーム名</p>
+                                    <p className="text-white font-medium mb-4">{selectedTeam.name}</p>
+                                    <div className="mb-4">
+                                        <label className="block text-sm text-slate-400 mb-1">地域名</label>
+                                        <input
+                                            type="text"
+                                            value={teamEntryRegion}
+                                            onChange={(e) => setTeamEntryRegion(e.target.value)}
+                                            className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500"
+                                            placeholder="任意"
+                                        />
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <h2 className="text-xl font-semibold text-white mb-4">エントリー追加 - {selectedTeam.name}</h2>
+                                    {isMixedFormat && (
+                                        <div className="mb-4">
+                                            <span className="text-sm text-slate-400 mr-3">種目</span>
+                                            <label className="inline-flex items-center mr-4">
+                                                <input
+                                                    type="radio"
+                                                    checked={playerForm.entryKind === 'singles'}
+                                                    onChange={() => setPlayerForm((p) => ({ ...p, entryKind: 'singles' }))}
+                                                    className="mr-1"
+                                                />
+                                                <span className="text-white text-sm">シングルス</span>
+                                            </label>
+                                            <label className="inline-flex items-center">
+                                                <input
+                                                    type="radio"
+                                                    checked={playerForm.entryKind === 'doubles'}
+                                                    onChange={() => setPlayerForm((p) => ({ ...p, entryKind: 'doubles' }))}
+                                                    className="mr-1"
+                                                />
+                                                <span className="text-white text-sm">ダブルス</span>
+                                            </label>
+                                        </div>
+                                    )}
+                                    <div className="mb-4">
+                                        <label className="block text-sm text-slate-400 mb-1">地域名（任意）</label>
+                                        <input
+                                            type="text"
+                                            value={playerForm.region_name}
+                                            onChange={(e) => setPlayerForm((p) => ({ ...p, region_name: e.target.value }))}
+                                            className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500"
+                                        />
+                                    </div>
+                                    <div className="mb-4">
+                                        <label className="block text-sm text-slate-400 mb-1">選手1氏名 <span className="text-red-400">*</span></label>
+                                        <input
+                                            type="text"
+                                            value={playerForm.player1_name}
+                                            onChange={(e) => setPlayerForm((p) => ({ ...p, player1_name: e.target.value }))}
+                                            className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white"
+                                        />
+                                    </div>
+                                    <div className="mb-4">
+                                        <label className="block text-sm text-slate-400 mb-1">選手1所属</label>
+                                        <input
+                                            type="text"
+                                            value={playerForm.player1_affiliation}
+                                            onChange={(e) => setPlayerForm((p) => ({ ...p, player1_affiliation: e.target.value }))}
+                                            className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white"
+                                            placeholder={selectedTeam.name}
+                                        />
+                                    </div>
+                                    {(playerForm.entryKind === 'doubles' || isDoublesOnly) && (
+                                        <>
+                                            <div className="mb-4">
+                                                <label className="block text-sm text-slate-400 mb-1">選手2氏名 <span className="text-red-400">*</span></label>
+                                                <input
+                                                    type="text"
+                                                    value={playerForm.player2_name}
+                                                    onChange={(e) => setPlayerForm((p) => ({ ...p, player2_name: e.target.value }))}
+                                                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white"
+                                                />
+                                            </div>
+                                            <div className="mb-4">
+                                                <label className="block text-sm text-slate-400 mb-1">選手2所属</label>
+                                                <input
+                                                    type="text"
+                                                    value={playerForm.player2_affiliation}
+                                                    onChange={(e) => setPlayerForm((p) => ({ ...p, player2_affiliation: e.target.value }))}
+                                                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white"
+                                                    placeholder={selectedTeam.name}
+                                                />
+                                            </div>
+                                        </>
+                                    )}
+                                </>
+                            )}
+                            {entrySubmitError && (
+                                <p className="text-red-400 text-sm mb-4">{entrySubmitError}</p>
+                            )}
+                            <div className="flex gap-2">
+                                {isTeamMatch ? (
+                                    <button
+                                        onClick={handleSubmitTeamEntry}
+                                        disabled={entrySubmitLoading}
+                                        className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
+                                    >
+                                        {entrySubmitLoading ? '追加中...' : '追加'}
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={handleSubmitPairEntry}
+                                        disabled={entrySubmitLoading}
+                                        className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
+                                    >
+                                        {entrySubmitLoading ? '追加中...' : '追加'}
+                                    </button>
+                                )}
                             <button
                                 onClick={() => {
                                     setShowPlayerModal(false);
                                     setSelectedTeam(null);
+                                        setEntrySubmitError(null);
+                                        setTeamEntryRegion('');
+                                        setPlayerForm({ entryKind: 'singles', region_name: '', player1_name: '', player1_affiliation: '', player2_name: '', player2_affiliation: '' });
                                 }}
-                                className="w-full px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors"
+                                    className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600"
                             >
                                 閉じる
                             </button>
+                            </div>
                         </div>
                     </div>
                 )}

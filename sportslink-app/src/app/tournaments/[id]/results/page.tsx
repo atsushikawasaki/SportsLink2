@@ -7,12 +7,13 @@ import { ArrowLeft, Search, Filter, Download, RotateCcw, Edit, CheckCircle } fro
 import AppHeader from '@/components/AppHeader';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import PDFExportButton from '@/components/PDFExportButton';
+import { MatchStatusFilter, isValidMatchStatusFilter } from '@/types/match.types';
 
 interface Match {
     id: string;
     round_name: string;
     match_number: number;
-    status: 'pending' | 'inprogress' | 'finished';
+    status: 'pending' | 'inprogress' | 'paused' | 'finished';
     is_confirmed?: boolean;
     match_scores?: {
         game_count_a: number;
@@ -24,7 +25,6 @@ interface Match {
         pair_number: number;
         teams?: {
             name: string;
-            school_name: string;
         };
     }>;
 }
@@ -182,7 +182,7 @@ export default function ResultsPage() {
             const data = await response.json();
             // CSV形式に変換
             const csvHeader = 'ラウンド,試合番号,チームA,チームB,スコアA,スコアB,最終スコア\n';
-            const csvRows = data.matches?.map((match: any) => {
+            const csvRows = data.matches?.map((match: Match) => {
                 const teamA = match.match_pairs?.[0]?.teams?.name || 'N/A';
                 const teamB = match.match_pairs?.[1]?.teams?.name || 'N/A';
                 const scores = Array.isArray(match.match_scores) ? match.match_scores[0] : match.match_scores;
@@ -268,12 +268,18 @@ export default function ResultsPage() {
                         <Filter className="w-4 h-4 text-slate-400" />
                         <select
                             value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value as any)}
+                            onChange={(e) => {
+                                const value = e.target.value;
+                                if (isValidMatchStatusFilter(value)) {
+                                    setStatusFilter(value);
+                                }
+                            }}
                             className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
                         >
                             <option value="all">すべてのステータス</option>
                             <option value="pending">待機中</option>
                             <option value="inprogress">進行中</option>
+                            <option value="paused">一時停止</option>
                             <option value="finished">終了</option>
                         </select>
                     </div>

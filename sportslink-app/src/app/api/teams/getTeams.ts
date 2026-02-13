@@ -6,10 +6,23 @@ export async function getTeams(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const tournamentId = searchParams.get('tournament_id');
-        const limit = parseInt(searchParams.get('limit') || '100');
-        const offset = parseInt(searchParams.get('offset') || '0');
+        const limitParam = searchParams.get('limit');
+        const offsetParam = searchParams.get('offset');
+        const limit = Math.max(1, Number.isNaN(parseInt(limitParam || '100', 10)) ? 100 : parseInt(limitParam || '100', 10));
+        const offset = Math.max(0, Number.isNaN(parseInt(offsetParam || '0', 10)) ? 0 : parseInt(offsetParam || '0', 10));
 
         const supabase = await createClient();
+
+        let teamIds: string[] | null = null;
+        if (tournamentId) {
+            const { data: entryRows } = await supabase
+                .from('tournament_entries')
+                .select('team_id')
+                .eq('tournament_id', tournamentId)
+                .not('team_id', 'is', null);
+            teamIds = [...new Set((entryRows || []).map((r) => r.team_id).filter(Boolean))] as string[];
+        }
+
         let query = supabase
             .from('teams')
             .select(`
@@ -23,8 +36,11 @@ export async function getTeams(request: Request) {
             .order('created_at', { ascending: false })
             .range(offset, offset + limit - 1);
 
-        if (tournamentId) {
-            query = query.eq('tournament_id', tournamentId);
+        if (teamIds !== null) {
+            if (teamIds.length === 0) {
+                return NextResponse.json({ data: [], count: 0 });
+            }
+            query = query.in('id', teamIds);
         }
 
         const { data, error, count } = await query;

@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server';
 export async function createTeam(request: Request) {
     try {
         const body = await request.json();
-        const { name, tournament_id, team_manager_user_id } = body;
+        const { name, team_manager_user_id } = body;
 
         if (!name) {
             return NextResponse.json(
@@ -20,8 +20,7 @@ export async function createTeam(request: Request) {
             .from('teams')
             .insert({
                 name,
-                tournament_id,
-                team_manager_user_id,
+                team_manager_user_id: team_manager_user_id ?? null,
             })
             .select()
             .single();

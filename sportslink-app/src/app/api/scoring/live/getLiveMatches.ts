@@ -5,8 +5,10 @@ import { NextResponse } from 'next/server';
 export async function getLiveMatches(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
-        const limit = parseInt(searchParams.get('limit') || '20');
-        const offset = parseInt(searchParams.get('offset') || '0');
+        const limitParam = searchParams.get('limit');
+        const offsetParam = searchParams.get('offset');
+        const limit = Math.max(1, Number.isNaN(parseInt(limitParam || '20', 10)) ? 20 : parseInt(limitParam || '20', 10));
+        const offset = Math.max(0, Number.isNaN(parseInt(offsetParam || '0', 10)) ? 0 : parseInt(offsetParam || '0', 10));
         const tournamentId = searchParams.get('tournament_id');
 
         const supabase = await createClient();

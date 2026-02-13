@@ -14,55 +14,57 @@ vi.mock('@/lib/supabase/server', () => ({
   })),
 }));
 
+// Admin client: from().select().eq().eq().eq().is().maybeSingle() and from().update().eq() etc.
+const mockAdminFrom = vi.fn();
+const resolvedPromise = Promise.resolve({ error: null });
+const adminChain = {
+  select: vi.fn().mockReturnThis(),
+  eq: vi.fn().mockReturnThis(),
+  is: vi.fn().mockReturnThis(),
+  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+  update: vi.fn().mockReturnThis(),
+  insert: vi.fn().mockResolvedValue({ error: null }),
+  then: (resolve: (v: { error: null }) => void) => resolvedPromise.then(resolve),
+  catch: (fn: (e: unknown) => void) => resolvedPromise.catch(fn),
+};
+mockAdminFrom.mockReturnValue(adminChain);
+
+vi.mock('@/lib/supabase/admin', () => ({
+  createAdminClient: vi.fn(() => ({
+    from: mockAdminFrom,
+  })),
+}));
+
 describe('assignMatch', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    
-    // eq()の後にsingle()が呼ばれるチェーン
-    const mockEqToSingleChain = {
-      single: mockSingle,
-    };
-    
-    // select()の後にeq()が呼ばれるチェーン
-    const mockSelectChain = {
-      eq: mockEq,
-    };
-    
-    // update()の後にeq()が呼ばれるチェーン
-    const mockUpdateChain = {
-      eq: mockEq,
-    };
-    
-    // eq()の後にselect()が呼ばれるチェーン（update後）
-    const mockEqToSelectChain = {
-      select: mockSelect,
-    };
-    
-    // select()の後にsingle()が呼ばれるチェーン
-    const mockSelectToSingleChain = {
-      single: mockSingle,
-    };
-    
-    // from()が返すオブジェクト（select()とupdate()の両方を持つ）
-    const mockFromChain = {
+
+    const mockSelectChain = { eq: mockEq };
+    const mockUpdateChain = { eq: mockEq };
+    const mockSelectToSingleChain = { single: mockSingle };
+
+    mockFrom.mockReturnValue({
       select: mockSelect,
       update: mockUpdate,
-    };
-    
-    mockFrom.mockReturnValue(mockFromChain);
-    mockSelect.mockReturnValue(mockSelectChain);
-    mockUpdate.mockReturnValue(mockUpdateChain);
-    // eq()は呼び出し元に応じて異なるチェーンを返す
-    mockEq.mockImplementation((column: string) => {
-      if (column === 'id') {
-        // update().eq('id')の後はselect()が呼ばれる
-        return mockEqToSelectChain;
-      }
-      // select().eq()の後はsingle()が呼ばれる
-      return mockEqToSingleChain;
     });
-    // select()がupdate().eq().select()の後に呼ばれた場合
-    mockSelect.mockReturnValue(mockSelectToSingleChain);
+    mockUpdate.mockReturnValue(mockUpdateChain);
+
+    // 1回目 select(): from('matches').select() → .eq() が必要
+    // 2回目 select(): update().eq().select() → .single() が必要
+    let selectCallCount = 0;
+    mockSelect.mockImplementation(() => {
+      selectCallCount += 1;
+      return selectCallCount === 1 ? mockSelectChain : mockSelectToSingleChain;
+    });
+
+    let eqCallCount = 0;
+    mockEq.mockImplementation((column: string) => {
+      eqCallCount += 1;
+      if (column === 'id' && eqCallCount >= 2) {
+        return { select: mockSelect };
+      }
+      return { single: mockSingle };
+    });
   });
 
   it('should assign umpire to match', async () => {

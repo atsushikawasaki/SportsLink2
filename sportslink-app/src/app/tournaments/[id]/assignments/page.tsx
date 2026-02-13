@@ -17,7 +17,6 @@ interface Match {
     match_pairs?: Array<{
         teams?: {
             name: string;
-            school_name: string;
         };
     }>;
     users?: {
@@ -43,7 +42,7 @@ export default function AssignmentsPage() {
     const [umpires, setUmpires] = useState<Umpire[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'inprogress' | 'finished'>('all');
+    const [statusFilter, setStatusFilter] = useState<MatchStatusFilter>('all');
     const [roundFilter, setRoundFilter] = useState<string>('all');
     const [assignments, setAssignments] = useState<Record<string, { umpire_id?: string; court_number?: number }>>({});
     const [isSaving, setIsSaving] = useState(false);
@@ -214,12 +213,18 @@ export default function AssignmentsPage() {
                         <Filter className="w-4 h-4 text-slate-400" />
                         <select
                             value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value as any)}
+                            onChange={(e) => {
+                                const value = e.target.value;
+                                if (isValidMatchStatusFilter(value)) {
+                                    setStatusFilter(value);
+                                }
+                            }}
                             className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                         >
                             <option value="all">すべてのステータス</option>
                             <option value="pending">待機中</option>
                             <option value="inprogress">進行中</option>
+                            <option value="paused">一時停止</option>
                             <option value="finished">終了</option>
                         </select>
                     </div>

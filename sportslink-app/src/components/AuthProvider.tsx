@@ -6,7 +6,7 @@ import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { createClient } from '@/lib/supabase/client';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-    const { setUser, setAccessToken, setLoading, logout, isLoading } = useAuthStore();
+    const { setUser, setAccessToken, setLoading, logout, isLoading, hasHydrated } = useAuthStore();
     const router = useRouter();
     const pathname = usePathname();
     const isAuthPage = pathname?.startsWith('/login') || pathname?.startsWith('/signup') || pathname?.startsWith('/consent');
@@ -19,13 +19,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const storeRef = useRef({ setUser, setAccessToken, setLoading, logout });
     storeRef.current = { setUser, setAccessToken, setLoading, logout };
 
-    // 初回マウント時のみセッションチェックを実行するフラグ
-    const hasCheckedSession = useRef(false);
-
     useEffect(() => {
-        // 既にセッションチェック済みの場合はスキップ
-        if (hasCheckedSession.current) return;
-        hasCheckedSession.current = true;
+        // Zustandのhydrationが完了するまで待つ
+        if (!hasHydrated) return;
 
         let isMounted = true;
         const { setUser, setAccessToken, setLoading, logout } = storeRef.current;
@@ -34,41 +30,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             try {
                 setLoading(true);
 
-                // Supabaseのセッションをチェック
-                const { data: { session }, error } = await supabase.auth.getSession();
+                // Supabaseのセッションチェック（タイムアウトなしで、より確実にセッションを取得）
+                const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
 
                 if (!isMounted) return;
 
-                if (error) {
-                    console.error('Session check error:', error);
-                    storeRef.current.logout();
-                    if (!isAuthPage && !isHomePage) {
-                        router.push('/login');
+                if (sessionError) {
+                    console.error('Session check error:', sessionError);
+                    // エラーが発生した場合でも、ストアに保存された情報があれば一時的に使用
+                    const currentUser = useAuthStore.getState().user;
+                    if (!currentUser) {
+                        storeRef.current.logout();
+                        if (!isAuthPage && !isHomePage) {
+                            router.push('/login');
+                        }
                     }
                     return;
                 }
 
+                const session = sessionData?.session;
+
                 if (session?.user) {
-                    // セッションが有効な場合、ユーザープロファイルを取得
-                    const { data: userProfile, error: profileError } = await supabase
-                        .from('users')
-                        .select('*')
-                        .eq('id', session.user.id)
-                        .single();
+                    // セッションが有効な場合、API経由でユーザープロファイルを取得
+                    try {
+                        const profileResponse = await fetch('/api/auth/me', {
+                            method: 'GET',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                        });
 
-                    if (!isMounted) return;
+                        if (!isMounted) return;
 
-                    if (profileError) {
-                        console.warn('User profile not found:', profileError);
-                        // プロファイルがなくても、セッションがあれば続行
-                        storeRef.current.setUser({
-                            id: session.user.id,
-                            email: session.user.email || '',
-                            display_name: session.user.user_metadata?.display_name || '',
-                            created_at: session.user.created_at || new Date().toISOString(),
-                        } as any);
-                    } else {
-                        storeRef.current.setUser(userProfile);
+                        if (profileResponse.ok) {
+                            const userProfile = await profileResponse.json();
+                            storeRef.current.setUser(userProfile);
+                        } else {
+                            // APIエラーの場合、セッション情報から基本情報を設定
+                            console.warn('Failed to fetch user profile, using session data');
+                            storeRef.current.setUser({
+                                id: session.user.id,
+                                email: session.user.email || '',
+                                display_name: session.user.user_metadata?.display_name || '',
+                                created_at: session.user.created_at || new Date().toISOString(),
+                            } as any);
+                        }
+                    } catch (fetchError) {
+                        console.warn('Error fetching user profile:', fetchError);
+                        // エラーの場合、セッション情報から基本情報を設定
+                        if (isMounted) {
+                            storeRef.current.setUser({
+                                id: session.user.id,
+                                email: session.user.email || '',
+                                display_name: session.user.user_metadata?.display_name || '',
+                                created_at: session.user.created_at || new Date().toISOString(),
+                            } as any);
+                        }
                     }
 
                     storeRef.current.setAccessToken(session.access_token);
@@ -78,8 +95,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         router.push('/dashboard');
                     }
                 } else {
-                    // セッションが無効な場合
-                    storeRef.current.logout();
+                    // セッションが無効な場合、ストアに保存された情報もクリア
+                    const currentUser = useAuthStore.getState().user;
+                    if (currentUser) {
+                        // ストアに情報があるがセッションがない場合、ログアウト
+                        storeRef.current.logout();
+                    }
                     if (!isAuthPage && !isHomePage) {
                         router.push('/login');
                     }
@@ -87,9 +108,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             } catch (error) {
                 console.error('Auth check error:', error);
                 if (isMounted) {
-                    storeRef.current.logout();
-                    if (!isAuthPage && !isHomePage) {
-                        router.push('/login');
+                    // エラーが発生した場合でも、ストアに保存された情報があれば一時的に使用
+                    const currentUser = useAuthStore.getState().user;
+                    if (!currentUser) {
+                        storeRef.current.logout();
+                        if (!isAuthPage && !isHomePage) {
+                            router.push('/login');
+                        }
                     }
                 }
             } finally {
@@ -112,26 +137,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         router.push('/login');
                     }
                 } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-                    // セッションが更新された場合、ユーザープロファイルを取得
+                    // セッションが更新された場合、API経由でユーザープロファイルを取得
                     if (session?.user) {
-                        const { data: userProfile, error: profileError } = await supabase
-                            .from('users')
-                            .select('*')
-                            .eq('id', session.user.id)
-                            .single();
+                        try {
+                            const profileResponse = await fetch('/api/auth/me', {
+                                method: 'GET',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                            });
 
-                        if (!isMounted) return;
+                            if (!isMounted) return;
 
-                        if (profileError) {
-                            console.warn('User profile not found:', profileError);
-                            storeRef.current.setUser({
-                                id: session.user.id,
-                                email: session.user.email || '',
-                                display_name: session.user.user_metadata?.display_name || '',
-                                created_at: session.user.created_at || new Date().toISOString(),
-                            } as any);
-                        } else {
-                            storeRef.current.setUser(userProfile);
+                            if (profileResponse.ok) {
+                                const userProfile = await profileResponse.json();
+                                storeRef.current.setUser(userProfile);
+                            } else {
+                                // APIエラーの場合、セッション情報から基本情報を設定
+                                console.warn('Failed to fetch user profile, using session data');
+                                storeRef.current.setUser({
+                                    id: session.user.id,
+                                    email: session.user.email || '',
+                                    display_name: session.user.user_metadata?.display_name || '',
+                                    created_at: session.user.created_at || new Date().toISOString(),
+                                } as any);
+                            }
+                        } catch (fetchError) {
+                            console.warn('Error fetching user profile:', fetchError);
+                            // エラーの場合、セッション情報から基本情報を設定
+                            if (isMounted) {
+                                storeRef.current.setUser({
+                                    id: session.user.id,
+                                    email: session.user.email || '',
+                                    display_name: session.user.user_metadata?.display_name || '',
+                                    created_at: session.user.created_at || new Date().toISOString(),
+                                } as any);
+                            }
                         }
 
                         storeRef.current.setAccessToken(session.access_token);
@@ -145,10 +186,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             subscription.unsubscribe();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [supabase]);
+    }, [supabase, hasHydrated]);
 
     // ローディング中はローディングUIを表示（ホームページと認証ページ以外）
-    if (isLoading && !isHomePage && !isAuthPage) {
+    // hydrationが完了していない場合もローディング表示
+    if ((!hasHydrated || isLoading) && !isHomePage && !isAuthPage) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
                 <div className="text-center">

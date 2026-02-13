@@ -14,15 +14,24 @@ interface MatchSlot {
     entry_id: string | null;
     source_match_id: string | null;
     placeholder_label: string | null;
+    tournament_entries?: {
+        id: string;
+        entry_type?: string;
+        region_name?: string | null;
+        custom_display_name?: string | null;
+        team_id?: string | null;
+        teams?: { id: string; name: string } | null;
+    } | null;
 }
 
 interface TournamentEntry {
     id: string;
     entry_type: string;
+    region_name?: string | null;
+    custom_display_name?: string | null;
     teams?: {
         id: string;
         name: string;
-        school_name: string;
     };
 }
 
@@ -44,7 +53,6 @@ interface Match {
         pair_number: number;
         teams?: {
             name: string;
-            school_name: string;
         };
     }>;
     match_slots?: MatchSlot[];
@@ -74,6 +82,44 @@ export default function DrawPage() {
     const [entries, setEntries] = useState<TournamentEntry[]>([]);
     const [editingSlots, setEditingSlots] = useState<Record<string, Partial<MatchSlot>>>({});
     const [isSaving, setIsSaving] = useState(false);
+    const [umpireInitial, setUmpireInitial] = useState<'guest' | 'unassigned' | 'me'>('me');
+
+    // スロットの対戦者表示名（選手名・チーム名）を組み立て
+    const getSlotDisplayLabel = (slot: MatchSlot): string => {
+        if (slot.source_type === 'bye') return '不戦勝';
+        if (slot.source_type === 'winner') return '勝者';
+        if (slot.source_type === 'loser') return '敗者';
+        if (slot.source_type === 'entry' && (slot.entry_id || slot.tournament_entries)) {
+            const ent = slot.tournament_entries ?? entries.find((e) => e.id === slot.entry_id);
+            const displayName = ent?.custom_display_name ?? ent?.teams?.name ?? 'エントリー';
+            const teamName = ent?.teams?.name;
+            if (teamName && displayName !== teamName) return `${displayName}（${teamName}）`;
+            return displayName;
+        }
+        return '未設定';
+    };
+
+    // 試合カードのタイトル（対戦選手名・チーム名。団体戦はチーム名のみ）
+    const getMatchTitle = (match: Match): string => {
+        if (match.match_pairs && match.match_pairs.length >= 2) {
+            const a = match.match_pairs[0].teams?.name || 'チーム1';
+            const b = match.match_pairs[1].teams?.name || 'チーム2';
+            return `${a} vs ${b}`;
+        }
+        if (match.match_pairs && match.match_pairs.length === 1) {
+            const a = match.match_pairs[0].teams?.name || 'チーム1';
+            return `${a} vs -`;
+        }
+        if (match.match_slots && match.match_slots.length >= 2) {
+            const a = getSlotDisplayLabel(match.match_slots[0]);
+            const b = getSlotDisplayLabel(match.match_slots[1]);
+            return `${a} vs ${b}`;
+        }
+        if (match.match_slots && match.match_slots.length === 1) {
+            return `${getSlotDisplayLabel(match.match_slots[0])} vs -`;
+        }
+        return `試合 #${match.match_number}`;
+    };
 
     useEffect(() => {
         fetchData();
@@ -101,7 +147,11 @@ export default function DrawPage() {
                     setSelectedPhase(drawData.phases[0].id);
                 }
             } else {
-                setError(drawData.error || 'ドローの取得に失敗しました');
+                const msg = drawData.details
+                    ? `${drawData.error || 'ドローの取得に失敗しました'}\n${drawData.details}`
+                    : (drawData.error || 'ドローの取得に失敗しました');
+                setError(msg);
+                console.error('Draw fetch error:', drawData);
             }
 
             // エントリー一覧取得（手動編集用）
@@ -127,6 +177,10 @@ export default function DrawPage() {
     };
 
     const handleGenerate = async () => {
+        if (!tournamentId) {
+            alert('大会情報の読み込みに失敗しています。ページを再読み込みしてください。');
+            return;
+        }
         if (!confirm('既存のドローは上書きされます。よろしいですか？')) {
             return;
         }
@@ -135,18 +189,39 @@ export default function DrawPage() {
             setIsGenerating(true);
             const response = await fetch(`/api/tournaments/${tournamentId}/draw/generate`, {
                 method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ umpire_initial: umpireInitial }),
             });
 
-            const result = await response.json();
+            let result: { error?: string; details?: string; code?: string };
+            try {
+                result = await response.json();
+            } catch {
+                const text = await response.text();
+                console.error('Draw generate error: non-JSON response', response.status, text?.slice(0, 200));
+                alert(`ドローの生成に失敗しました（${response.status}）。コンソールを確認してください。`);
+                return;
+            }
+
             if (!response.ok) {
-                alert(result.error || 'ドローの生成に失敗しました');
+                const msg = result.details
+                    ? `${result.error || 'ドローの生成に失敗しました'}\n\n詳細: ${result.details}`
+                    : (result.error || 'ドローの生成に失敗しました');
+                console.error('Draw generate error:', response.status, result.error, result.details, result);
+                alert(msg);
                 return;
             }
 
             alert('ドローを生成しました');
             fetchData();
         } catch (err) {
-            alert('ドローの生成に失敗しました');
+            console.error('Draw generate error:', err);
+            const msg = err instanceof Error ? err.message : 'ドローの生成に失敗しました';
+            if (msg === 'Failed to fetch') {
+                alert('ネットワークエラーまたはサーバーが応答していません。接続を確認し、しばらく待ってから再試行してください。');
+            } else {
+                alert(msg);
+            }
         } finally {
             setIsGenerating(false);
         }
@@ -166,6 +241,36 @@ export default function DrawPage() {
         acc[match.round_name].push(match);
         return acc;
     }, {} as Record<string, Match[]>);
+
+    // round_index でソート（1回戦=1 → 2回戦=2 → … → 決勝）して表示順を保証
+    const roundOrder = ['1回戦', '2回戦', '3回戦', '4回戦', '5回戦', '6回戦', '準決勝', '決勝'];
+    const sortedRoundEntries = Object.entries(groupedMatches).sort(([nameA, matchesA], [nameB, matchesB]) => {
+        const idxA = matchesA[0]?.round_index ?? roundOrder.indexOf(nameA);
+        const idxB = matchesB[0]?.round_index ?? roundOrder.indexOf(nameB);
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+        const ia = roundOrder.indexOf(nameA);
+        const ib = roundOrder.indexOf(nameB);
+        if (ia !== -1 && ib !== -1) return ia - ib;
+        if (ia !== -1) return -1;
+        if (ib !== -1) return 1;
+        return nameA.localeCompare(nameB);
+    });
+
+    // ブラケット用: ラウンド別試合（round_index 昇順）、各ラウンド内は slot_index 昇順
+    const matchesByRound = filteredMatches.reduce<Record<number, Match[]>>((acc, m) => {
+        const r = m.round_index;
+        if (!acc[r]) acc[r] = [];
+        acc[r].push(m);
+        return acc;
+    }, {});
+    Object.keys(matchesByRound).forEach((r) => {
+        matchesByRound[Number(r)].sort((a, b) => (a.slot_index ?? 0) - (b.slot_index ?? 0));
+    });
+    const roundIndices = Object.keys(matchesByRound)
+        .map(Number)
+        .sort((a, b) => a - b);
+    const maxRound = roundIndices.length > 0 ? Math.max(...roundIndices) : 1;
+    const totalBracketRows = Math.pow(2, maxRound);
 
     const handleEditMatch = (matchId: string) => {
         const match = matches.find((m) => m.id === matchId);
@@ -291,22 +396,36 @@ export default function DrawPage() {
                             </h1>
                             {tournament && <p className="text-slate-400 mt-2">{tournament.name}</p>}
                         </div>
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => setViewMode(viewMode === 'list' ? 'bracket' : 'list')}
-                                className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors"
-                            >
-                                {viewMode === 'list' ? <Grid className="w-4 h-4" /> : <List className="w-4 h-4" />}
-                                {viewMode === 'list' ? 'ブラケット表示' : 'リスト表示'}
-                            </button>
-                            <button
-                                onClick={handleGenerate}
-                                disabled={isGenerating}
-                                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-lg shadow-lg hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                            >
-                                <RefreshCw className={`w-4 h-4 ${isGenerating ? 'animate-spin' : ''}`} />
-                                {isGenerating ? '生成中...' : 'ドロー自動生成'}
-                            </button>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                            <div className="flex items-center gap-3">
+                                <span className="text-slate-400 text-sm">審判の初期割り当て:</span>
+                                <select
+                                    value={umpireInitial}
+                                    onChange={(e) => setUmpireInitial(e.target.value as 'guest' | 'unassigned' | 'me')}
+                                    className="bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                >
+                                    <option value="me">自分（ドロー生成者）</option>
+                                    <option value="guest">ゲスト審判</option>
+                                    <option value="unassigned">未割り当て</option>
+                                </select>
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setViewMode(viewMode === 'list' ? 'bracket' : 'list')}
+                                    className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors"
+                                >
+                                    {viewMode === 'list' ? <Grid className="w-4 h-4" /> : <List className="w-4 h-4" />}
+                                    {viewMode === 'list' ? 'ブラケット表示' : 'リスト表示'}
+                                </button>
+                                <button
+                                    onClick={handleGenerate}
+                                    disabled={isGenerating}
+                                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-lg shadow-lg hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                                >
+                                    <RefreshCw className={`w-4 h-4 ${isGenerating ? 'animate-spin' : ''}`} />
+                                    {isGenerating ? '生成中...' : 'ドロー自動生成'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -351,7 +470,7 @@ export default function DrawPage() {
                     </div>
                 ) : viewMode === 'list' ? (
                     <div className="space-y-6">
-                        {Object.entries(groupedMatches).map(([roundName, roundMatches]) => (
+                        {sortedRoundEntries.map(([roundName, roundMatches]) => (
                             <div key={roundName} className="bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50 p-6">
                                 <h2 className="text-xl font-semibold text-white mb-4">{roundName}</h2>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -360,9 +479,11 @@ export default function DrawPage() {
                                             key={match.id}
                                             className="p-4 bg-slate-700/50 rounded-lg border border-slate-600 hover:border-purple-500 transition-colors"
                                         >
-                                            <div className="flex items-center justify-between mb-2">
-                                                <span className="text-sm text-slate-400">試合 #{match.match_number}</span>
-                                                <div className="flex items-center gap-2">
+                                            <div className="flex items-center justify-between gap-2 mb-2">
+                                                <span className="text-sm font-medium text-white min-w-0 break-words line-clamp-2" title={getMatchTitle(match)}>
+                                                    {getMatchTitle(match)}
+                                                </span>
+                                                <div className="flex items-center gap-2 shrink-0">
                                                     {match.status === 'pending' && (
                                                         <button
                                                             onClick={() => handleEditMatch(match.id)}
@@ -400,16 +521,19 @@ export default function DrawPage() {
                                                             <select
                                                                 value={editingSlots[slot.id]?.source_type || slot.source_type}
                                                                 onChange={(e) => {
-                                                                    setEditingSlots((prev) => ({
-                                                                        ...prev,
-                                                                        [slot.id]: {
-                                                                            ...prev[slot.id],
-                                                                            source_type: e.target.value as any,
-                                                                            entry_id: e.target.value === 'entry' ? prev[slot.id]?.entry_id || null : null,
-                                                                            source_match_id: e.target.value === 'winner' || e.target.value === 'loser' ? prev[slot.id]?.source_match_id || null : null,
-                                                                            placeholder_label: e.target.value === 'bye' ? 'BYE' : null,
-                                                                        },
-                                                                    }));
+                                                                    const value = e.target.value;
+                                                                    if (value === 'entry' || value === 'winner' || value === 'loser' || value === 'bye') {
+                                                                        setEditingSlots((prev) => ({
+                                                                            ...prev,
+                                                                            [slot.id]: {
+                                                                                ...prev[slot.id],
+                                                                                source_type: value,
+                                                                                entry_id: value === 'entry' ? prev[slot.id]?.entry_id || null : null,
+                                                                                source_match_id: value === 'winner' || value === 'loser' ? prev[slot.id]?.source_match_id || null : null,
+                                                                                placeholder_label: value === 'bye' ? 'BYE' : null,
+                                                                            },
+                                                                        }));
+                                                                    }
                                                                 }}
                                                                 className="w-full px-2 py-1 bg-slate-600 border border-slate-500 rounded text-white text-sm"
                                                             >
@@ -473,16 +597,8 @@ export default function DrawPage() {
                                                     ) : match.match_slots && match.match_slots.length > 0 ? (
                                                         <div className="space-y-1">
                                                             {match.match_slots.map((slot) => (
-                                                                <div key={slot.id} className="text-sm text-slate-300">
-                                                                    {slot.source_type === 'entry' && slot.entry_id
-                                                                        ? entries.find((e) => e.id === slot.entry_id)?.teams?.name || 'エントリー'
-                                                                        : slot.source_type === 'bye'
-                                                                        ? '不戦勝'
-                                                                        : slot.source_type === 'winner'
-                                                                        ? '勝者'
-                                                                        : slot.source_type === 'loser'
-                                                                        ? '敗者'
-                                                                        : '未設定'}
+                                                                <div key={slot.id} className="text-sm text-white">
+                                                                    {getSlotDisplayLabel(slot)}
                                                                 </div>
                                                             ))}
                                                         </div>
@@ -493,7 +609,7 @@ export default function DrawPage() {
                                                         </div>
                                                     )}
                                                     <Link
-                                                        href={`/matches/${match.id}`}
+                                                        href={`/matches/${match.id}?tournamentId=${tournamentId}`}
                                                         className="block mt-2 text-xs text-purple-400 hover:text-purple-300"
                                                     >
                                                         詳細を見る →
@@ -507,8 +623,92 @@ export default function DrawPage() {
                         ))}
                     </div>
                 ) : (
-                    <div className="bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50 p-6">
-                        <p className="text-slate-400 text-center">ブラケット表示は実装中です</p>
+                    <div className="bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50 p-6 overflow-x-auto">
+                        <div className="inline-flex gap-8 min-w-max">
+                            {roundIndices.map((roundIdx) => {
+                                const roundMatches = matchesByRound[roundIdx] ?? [];
+                                const roundLabel =
+                                    roundIdx === maxRound
+                                        ? '決勝'
+                                        : roundIdx === maxRound - 1
+                                        ? '準決勝'
+                                        : `${roundIdx}回戦`;
+                                const rowSpan = Math.pow(2, roundIdx);
+                                return (
+                                    <div
+                                        key={roundIdx}
+                                        className="flex flex-col shrink-0"
+                                        style={{
+                                            width: '220px',
+                                            display: 'grid',
+                                            gridTemplateRows: `28px repeat(${totalBracketRows}, 52px)`,
+                                            gap: '4px 0',
+                                        }}
+                                    >
+                                        <div className="text-slate-400 text-sm font-medium text-center sticky top-0">
+                                            {roundLabel}
+                                        </div>
+                                        {roundMatches.map((match) => {
+                                            const slotIndex = match.slot_index ?? 0;
+                                            const rowStart = slotIndex * rowSpan;
+                                            const slotLabelA =
+                                                match.match_slots && match.match_slots[0]
+                                                    ? getSlotDisplayLabel(match.match_slots[0])
+                                                    : match.match_pairs?.[0]?.teams?.name ?? '—';
+                                            const slotLabelB =
+                                                match.match_slots && match.match_slots[1]
+                                                    ? getSlotDisplayLabel(match.match_slots[1])
+                                                    : match.match_pairs?.[1]?.teams?.name ?? '—';
+                                            const score =
+                                                match.match_scores != null
+                                                    ? `${match.match_scores.game_count_a} - ${match.match_scores.game_count_b}`
+                                                    : null;
+                                            return (
+                                                <div
+                                                    key={match.id}
+                                                    className="flex items-center"
+                                                    style={{
+                                                        gridRow: `${rowStart + 2} / span ${rowSpan}`,
+                                                    }}
+                                                >
+                                                    <Link
+                                                        href={`/matches/${match.id}?tournamentId=${tournamentId}`}
+                                                        className="block w-full rounded-lg border border-slate-600 bg-slate-700/80 hover:border-purple-500 hover:bg-slate-700 transition-colors overflow-hidden"
+                                                    >
+                                                        <div className="flex flex-col text-sm">
+                                                            <div className="px-2 py-1.5 truncate border-b border-slate-600 bg-slate-800/50 text-slate-200">
+                                                                {slotLabelA}
+                                                            </div>
+                                                            <div className="px-2 py-1.5 truncate border-b border-slate-600 bg-slate-800/50 text-slate-200">
+                                                                {slotLabelB}
+                                                            </div>
+                                                            <div className="px-2 py-1 flex items-center justify-between">
+                                                                {score != null ? (
+                                                                    <span className="text-green-400 font-medium">{score}</span>
+                                                                ) : (
+                                                                    <span className="text-slate-500 text-xs">vs</span>
+                                                                )}
+                                                                <span
+                                                                    className={`text-xs px-1.5 py-0.5 rounded ${
+                                                                        match.status === 'finished'
+                                                                            ? 'bg-green-500/20 text-green-400'
+                                                                            : match.status === 'inprogress'
+                                                                            ? 'bg-blue-500/20 text-blue-400'
+                                                                            : 'bg-slate-500/20 text-slate-400'
+                                                                    }`}
+                                                                >
+                                                                    {match.status === 'finished' ? '終了' : match.status === 'inprogress' ? '進行中' : '待機'}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </Link>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
                 )}
             </div>

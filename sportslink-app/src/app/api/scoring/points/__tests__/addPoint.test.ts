@@ -199,6 +199,12 @@ describe('addPoint', () => {
       error: null,
     });
 
+    // 3rd call: match_scores fetch
+    mockSingle.mockResolvedValueOnce({
+      data: { game_count_a: 0, game_count_b: 0 },
+      error: null,
+    });
+
     const request = new Request('http://localhost/api/scoring/points', {
       method: 'POST',
       body: JSON.stringify({
@@ -237,6 +243,11 @@ describe('addPoint', () => {
 
     mockSingle.mockResolvedValueOnce({
       data: mockPoint,
+      error: null,
+    });
+
+    mockSingle.mockResolvedValueOnce({
+      data: { game_count_a: 0, game_count_b: 0 },
       error: null,
     });
 
@@ -336,6 +347,11 @@ describe('addPoint', () => {
 
       mockSingle.mockResolvedValueOnce({
         data: mockPoint,
+        error: null,
+      });
+
+      mockSingle.mockResolvedValueOnce({
+        data: { game_count_a: 0, game_count_b: 0 },
         error: null,
       });
 

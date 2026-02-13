@@ -41,23 +41,14 @@ describe('getMatch', () => {
       round_name: 'Round 1',
       status: 'inprogress',
       match_type: 'individual_match',
+      match_scores: [],
+      match_pairs: [],
+      users: null,
+      tournaments: null,
     };
 
-    // First call: get match
     mockSingle.mockResolvedValueOnce({
       data: mockMatch,
-      error: null,
-    });
-
-    // Second call: get match_scores (single returns null when no data)
-    mockSingle.mockResolvedValueOnce({
-      data: null,
-      error: null,
-    });
-
-    // Third call: get match_pairs (order returns array)
-    mockOrder.mockResolvedValueOnce({
-      data: [],
       error: null,
     });
 
@@ -85,39 +76,24 @@ describe('getMatch', () => {
   });
 
   it('should get umpire information when umpire_id exists', async () => {
-    const mockMatch = {
-      id: 'match-123',
-      umpire_id: 'umpire-456',
-      match_type: 'individual_match',
-    };
-
     const mockUmpire = {
       id: 'umpire-456',
       display_name: 'Umpire Name',
       email: 'umpire@example.com',
     };
 
-    // First call: get match
+    const mockMatch = {
+      id: 'match-123',
+      umpire_id: 'umpire-456',
+      match_type: 'individual_match',
+      match_scores: [],
+      match_pairs: [],
+      users: mockUmpire,
+      tournaments: null,
+    };
+
     mockSingle.mockResolvedValueOnce({
       data: mockMatch,
-      error: null,
-    });
-
-    // Second call: get match_scores
-    mockSingle.mockResolvedValueOnce({
-      data: null,
-      error: null,
-    });
-
-    // Third call: get match_pairs
-    mockOrder.mockResolvedValueOnce({
-      data: [],
-      error: null,
-    });
-
-    // Fourth call: get umpire (users table)
-    mockSingle.mockResolvedValueOnce({
-      data: mockUmpire,
       error: null,
     });
 
@@ -132,6 +108,10 @@ describe('getMatch', () => {
     const mockMatch = {
       id: 'match-123',
       match_type: 'team_match',
+      match_scores: [],
+      match_pairs: [],
+      users: null,
+      tournaments: null,
     };
 
     const mockChildMatches = [
@@ -139,25 +119,11 @@ describe('getMatch', () => {
       { id: 'child-2', parent_match_id: 'match-123' },
     ];
 
-    // First call: get match
     mockSingle.mockResolvedValueOnce({
       data: mockMatch,
       error: null,
     });
 
-    // Second call: get match_scores
-    mockSingle.mockResolvedValueOnce({
-      data: null,
-      error: null,
-    });
-
-    // Third call: get match_pairs
-    mockOrder.mockResolvedValueOnce({
-      data: [],
-      error: null,
-    });
-
-    // Fourth call: get child matches
     mockOrder.mockResolvedValueOnce({
       data: mockChildMatches,
       error: null,

@@ -1,7 +1,10 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
-// POST /api/tournaments/:id/players - 選手追加
+/**
+ * POST /api/tournaments/:id/players - 大会に選手を追加（シングルスエントリー＋選手＋ペアを新規作成）
+ * id = tournament_id, body: { team_id, player_name, player_type }
+ */
 export async function addTournamentPlayer(id: string, request: Request) {
     try {
         const body = await request.json();
@@ -16,25 +19,82 @@ export async function addTournamentPlayer(id: string, request: Request) {
 
         const supabase = await createClient();
 
-        const { data, error } = await supabase
-            .from('tournament_players')
+        const { data: newEntry, error: entryError } = await supabase
+            .from('tournament_entries')
             .insert({
                 tournament_id: id,
+                entry_type: 'singles',
                 team_id,
-                player_name,
-                player_type,
+                pair_id: null,
+                custom_display_name: player_name.trim().split(/\s/)[0] || player_name,
+                is_active: true,
             })
-            .select()
+            .select('id')
             .single();
 
-        if (error) {
+        if (entryError || !newEntry) {
             return NextResponse.json(
-                { error: error.message, code: 'E-DB-001' },
+                { error: entryError?.message || 'エントリーの作成に失敗しました', code: 'E-DB-001' },
                 { status: 500 }
             );
         }
 
-        return NextResponse.json(data, { status: 201 });
+        const { data: newPlayer, error: playerError } = await supabase
+            .from('tournament_players')
+            .insert({
+                entry_id: newEntry.id,
+                actual_team_id: team_id,
+                player_name,
+                player_type: player_type === '前衛' || player_type === '後衛' || player_type === '両方' ? player_type : '両方',
+                sort_order: 1,
+            })
+            .select('id')
+            .single();
+
+        if (playerError || !newPlayer) {
+            return NextResponse.json(
+                { error: playerError?.message || '選手の登録に失敗しました', code: 'E-DB-001' },
+                { status: 500 }
+            );
+        }
+
+        const { data: newPair, error: pairError } = await supabase
+            .from('tournament_pairs')
+            .insert({
+                entry_id: newEntry.id,
+                pair_number: 1,
+                player_1_id: newPlayer.id,
+                player_2_id: null,
+            })
+            .select('id')
+            .single();
+
+        if (pairError || !newPair) {
+            return NextResponse.json(
+                { error: pairError?.message || 'ペアの登録に失敗しました', code: 'E-DB-001' },
+                { status: 500 }
+            );
+        }
+
+        const { error: updateError } = await supabase
+            .from('tournament_entries')
+            .update({ pair_id: newPair.id })
+            .eq('id', newEntry.id);
+
+        if (updateError) {
+            return NextResponse.json(
+                { error: updateError.message || 'エントリーの更新に失敗しました', code: 'E-DB-001' },
+                { status: 500 }
+            );
+        }
+
+        const { data: player } = await supabase
+            .from('tournament_players')
+            .select('*')
+            .eq('id', newPlayer.id)
+            .single();
+
+        return NextResponse.json(player ?? newPlayer, { status: 201 });
     } catch (error) {
         console.error('Create player error:', error);
         return NextResponse.json(
@@ -43,4 +103,3 @@ export async function addTournamentPlayer(id: string, request: Request) {
         );
     }
 }
-

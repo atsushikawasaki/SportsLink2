@@ -96,7 +96,7 @@ describe('useAuthStore', () => {
     expect(result.current.isLoading).toBe(true);
   });
 
-  it('should logout and reset state', () => {
+  it('should logout and reset state', async () => {
     const { result } = renderHook(() => useAuthStore());
 
     const mockUser = {
@@ -107,7 +107,10 @@ describe('useAuthStore', () => {
     act(() => {
       result.current.setUser(mockUser);
       result.current.setAccessToken('token-123');
-      result.current.logout();
+    });
+
+    await act(async () => {
+      await result.current.logout();
     });
 
     expect(result.current.user).toBeNull();

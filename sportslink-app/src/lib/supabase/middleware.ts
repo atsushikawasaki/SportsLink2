@@ -6,10 +6,14 @@ export async function updateSession(request: NextRequest) {
         request,
     });
 
-    const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
+    try {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        if (!supabaseUrl || !supabaseAnonKey) {
+            return supabaseResponse;
+        }
+
+        const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
             cookies: {
                 getAll() {
                     return request.cookies.getAll();
@@ -26,11 +30,12 @@ export async function updateSession(request: NextRequest) {
                     );
                 },
             },
-        }
-    );
+        });
 
-    // Refreshing the auth token
-    await supabase.auth.getUser();
+        await supabase.auth.getUser();
+    } catch {
+        // セッション更新に失敗してもページは表示する（404 を防ぐ）
+    }
 
     return supabaseResponse;
 }

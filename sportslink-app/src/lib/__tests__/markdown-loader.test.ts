@@ -1,16 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { loadMarkdownDocument, getAvailableVersions } from '../markdown-loader';
 
-// fsモジュールをモック（importOriginalを使用）
-vi.mock('fs', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('fs')>();
-  return {
-    ...actual,
-    readFileSync: vi.fn(),
-    existsSync: vi.fn(),
-    readdirSync: vi.fn(),
-  };
-});
+// vi.hoisted でモックを定義し、vi.mock ファクトリとテストで同じ参照を使う
+const mockReadFileSync = vi.hoisted(() => vi.fn());
+const mockExistsSync = vi.hoisted(() => vi.fn());
+const mockReaddirSync = vi.hoisted(() => vi.fn());
+
+vi.mock('fs', () => ({
+  readFileSync: mockReadFileSync,
+  existsSync: mockExistsSync,
+  readdirSync: mockReaddirSync,
+  default: {
+    readFileSync: mockReadFileSync,
+    existsSync: mockExistsSync,
+    readdirSync: mockReaddirSync,
+  },
+}));
 
 vi.mock('path', () => ({
   default: {
@@ -19,14 +23,9 @@ vi.mock('path', () => ({
   join: (...args: string[]) => args.join('/'),
 }));
 
-// モック関数を取得
-import * as fs from 'fs';
+import { loadMarkdownDocument, getAvailableVersions } from '../markdown-loader';
 
 describe('markdown-loader', () => {
-  const mockReadFileSync = vi.mocked(fs.readFileSync);
-  const mockExistsSync = vi.mocked(fs.existsSync);
-  const mockReaddirSync = vi.mocked(fs.readdirSync);
-
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -34,7 +33,7 @@ describe('markdown-loader', () => {
   describe('loadMarkdownDocument', () => {
     it('should load markdown document successfully', async () => {
       const mockContent = '# Terms of Service\n\n**バージョン**: 1.0.0\n\n**最終更新日**: 2024年1月1日\n\nContent here.';
-      
+
       mockExistsSync.mockReturnValue(true);
       mockReadFileSync.mockReturnValue(mockContent);
 
@@ -47,7 +46,7 @@ describe('markdown-loader', () => {
 
     it('should extract version from content', async () => {
       const mockContent = '# Privacy Policy\n\n**バージョン**: 2.1.0\n\nContent here.';
-      
+
       mockExistsSync.mockReturnValue(true);
       mockReadFileSync.mockReturnValue(mockContent);
 
@@ -58,7 +57,7 @@ describe('markdown-loader', () => {
 
     it('should extract last updated date from content', async () => {
       const mockContent = '# Terms\n\n**最終更新日**: 2024年12月31日\n\nContent.';
-      
+
       mockExistsSync.mockReturnValue(true);
       mockReadFileSync.mockReturnValue(mockContent);
 
@@ -75,19 +74,19 @@ describe('markdown-loader', () => {
 
     it('should handle missing version in content', async () => {
       const mockContent = '# Terms\n\nContent without version.';
-      
+
       mockExistsSync.mockReturnValue(true);
       mockReadFileSync.mockReturnValue(mockContent);
 
       const result = await loadMarkdownDocument('terms', '1.0.0');
 
-      expect(result.version).toBe('1.0.0'); // Falls back to provided version
+      expect(result.version).toBe('1.0.0');
       expect(result.lastUpdated).toBeNull();
     });
 
     it('should handle missing last updated date', async () => {
       const mockContent = '# Terms\n\nContent without date.';
-      
+
       mockExistsSync.mockReturnValue(true);
       mockReadFileSync.mockReturnValue(mockContent);
 
@@ -160,4 +159,3 @@ describe('markdown-loader', () => {
     });
   });
 });
-

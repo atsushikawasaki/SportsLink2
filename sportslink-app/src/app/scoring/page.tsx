@@ -5,11 +5,11 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import Link from 'next/link';
 import { ArrowRight, Clock, Play, CheckCircle, Search, Filter } from 'lucide-react';
+import { MatchStatusFilter, isValidMatchStatusFilter } from '@/types/match.types';
 
 interface Team {
     id: string;
     name: string;
-    school_name: string;
 }
 
 interface MatchPair {
@@ -28,7 +28,7 @@ interface Match {
     id: string;
     tournament_id: string;
     round_name: string;
-    status: 'pending' | 'inprogress' | 'finished';
+    status: 'pending' | 'inprogress' | 'paused' | 'finished';
     umpire_id: string;
     court_number: number | null;
     started_at: string | null;
@@ -200,12 +200,18 @@ export default function ScoringListPage() {
                                 <span className="text-sm text-slate-400">ステータス:</span>
                                 <select
                                     value={statusFilter}
-                                    onChange={(e) => setStatusFilter(e.target.value as any)}
+                                    onChange={(e) => {
+                                        const value = e.target.value;
+                                        if (isValidMatchStatusFilter(value)) {
+                                            setStatusFilter(value);
+                                        }
+                                    }}
                                     className="px-3 py-1 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 >
                                     <option value="all">すべて</option>
                                     <option value="pending">待機中</option>
                                     <option value="inprogress">進行中</option>
+                                    <option value="paused">一時停止</option>
                                     <option value="finished">終了</option>
                                 </select>
                             </div>

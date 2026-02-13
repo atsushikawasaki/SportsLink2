@@ -10,8 +10,6 @@ import AppHeader from '@/components/AppHeader';
 interface Team {
     id: string;
     name: string;
-    school_name: string;
-    description: string | null;
     team_manager_user_id: string | null;
     created_at: string;
     tournament_players?: Array<{
@@ -68,11 +66,7 @@ export default function TeamsPage() {
     const filteredTeams = teams.filter((team) => {
         if (searchQuery) {
             const query = searchQuery.toLowerCase();
-            return (
-                team.name.toLowerCase().includes(query) ||
-                team.school_name.toLowerCase().includes(query) ||
-                (team.description && team.description.toLowerCase().includes(query))
-            );
+            return team.name.toLowerCase().includes(query);
         }
         return true;
     });
@@ -138,7 +132,7 @@ export default function TeamsPage() {
                                 <div className="flex items-start justify-between mb-4">
                                     <div className="flex-1">
                                         <h3 className="text-xl font-semibold text-white mb-1">{team.name}</h3>
-                                        <p className="text-slate-400 text-sm">{team.school_name}</p>
+                                        <p className="text-slate-400 text-sm">チーム</p>
                                     </div>
                                 </div>
                                 {team.description && (

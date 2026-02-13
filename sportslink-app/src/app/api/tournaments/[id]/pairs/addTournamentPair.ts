@@ -1,11 +1,18 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
-// POST /api/tournaments/:id/pairs - ペア追加
+// POST /api/tournaments/:id/pairs - ペア追加（entry_id 経由でエントリーに紐づける）
 export async function addTournamentPair(id: string, request: Request) {
     try {
         const body = await request.json();
-        const { team_id, pair_number, player_1_id, player_2_id } = body;
+        const { entry_id, pair_number, player_1_id, player_2_id } = body;
+
+        if (!entry_id) {
+            return NextResponse.json(
+                { error: 'エントリーID（entry_id）は必須です', code: 'E-VER-003' },
+                { status: 400 }
+            );
+        }
 
         if (!player_1_id) {
             return NextResponse.json(
@@ -14,7 +21,6 @@ export async function addTournamentPair(id: string, request: Request) {
             );
         }
 
-        // シングルスの場合はplayer_2_idがnull、ダブルスの場合は必須
         if (player_2_id && player_1_id === player_2_id) {
             return NextResponse.json(
                 { error: '同じ選手を選択することはできません', code: 'E-VER-003' },
@@ -24,11 +30,25 @@ export async function addTournamentPair(id: string, request: Request) {
 
         const supabase = await createClient();
 
+        // entry_id がこの大会に属するか検証
+        const { data: entry, error: entryError } = await supabase
+            .from('tournament_entries')
+            .select('id')
+            .eq('id', entry_id)
+            .eq('tournament_id', id)
+            .maybeSingle();
+
+        if (entryError || !entry) {
+            return NextResponse.json(
+                { error: '指定されたエントリーがこの大会に存在しません', code: 'E-NOT-FOUND' },
+                { status: 404 }
+            );
+        }
+
         const { data, error } = await supabase
             .from('tournament_pairs')
             .insert({
-                tournament_id: id,
-                team_id: team_id || null,
+                entry_id,
                 pair_number: pair_number || null,
                 player_1_id,
                 player_2_id: player_2_id || null,

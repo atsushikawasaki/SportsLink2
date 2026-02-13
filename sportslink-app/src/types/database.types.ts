@@ -105,25 +105,19 @@ export type Database = {
             teams: {
                 Row: {
                     id: string
-                    tournament_id: string
                     name: string
-                    description: string | null
                     team_manager_user_id: string | null
                     created_at: string
                 }
                 Insert: {
                     id?: string
-                    tournament_id: string
                     name: string
-                    description?: string | null
                     team_manager_user_id?: string | null
                     created_at?: string
                 }
                 Update: {
                     id?: string
-                    tournament_id?: string
                     name?: string
-                    description?: string | null
                     team_manager_user_id?: string | null
                     created_at?: string
                 }
@@ -131,34 +125,36 @@ export type Database = {
             tournament_players: {
                 Row: {
                     id: string
-                    tournament_id: string
-                    team_id: string
+                    entry_id: string | null
+                    actual_team_id: string
                     player_name: string
                     player_type: '前衛' | '後衛' | '両方'
+                    sort_order: number | null
                     created_at: string
                 }
                 Insert: {
                     id?: string
-                    tournament_id: string
-                    team_id: string
+                    entry_id?: string | null
+                    actual_team_id: string
                     player_name: string
                     player_type: '前衛' | '後衛' | '両方'
+                    sort_order?: number | null
                     created_at?: string
                 }
                 Update: {
                     id?: string
-                    tournament_id?: string
-                    team_id?: string
+                    entry_id?: string | null
+                    actual_team_id?: string
                     player_name?: string
                     player_type?: '前衛' | '後衛' | '両方'
+                    sort_order?: number | null
                     created_at?: string
                 }
             }
             tournament_pairs: {
                 Row: {
                     id: string
-                    tournament_id: string
-                    team_id: string | null
+                    entry_id: string | null
                     pair_number: number
                     player_1_id: string
                     player_2_id: string | null
@@ -166,8 +162,7 @@ export type Database = {
                 }
                 Insert: {
                     id?: string
-                    tournament_id: string
-                    team_id?: string | null
+                    entry_id?: string | null
                     pair_number: number
                     player_1_id: string
                     player_2_id?: string | null
@@ -175,8 +170,7 @@ export type Database = {
                 }
                 Update: {
                     id?: string
-                    tournament_id?: string
-                    team_id?: string | null
+                    entry_id?: string | null
                     pair_number?: number
                     player_1_id?: string
                     player_2_id?: string | null
@@ -242,13 +236,14 @@ export type Database = {
                 Row: {
                     id: string
                     tournament_id: string
-                    entry_type: 'team' | 'pair'
+                    entry_type: 'team' | 'doubles' | 'singles'
                     team_id: string | null
                     pair_id: string | null
                     seed_rank: number | null
                     performance_score: number | null
                     team_order: number | null
-                    affiliation_key: string | null
+                    region_name: string | null
+                    custom_display_name: string | null
                     is_active: boolean
                     is_checked_in: boolean
                     day_token: string | null
@@ -258,13 +253,14 @@ export type Database = {
                 Insert: {
                     id?: string
                     tournament_id: string
-                    entry_type: 'team' | 'pair'
+                    entry_type: 'team' | 'doubles' | 'singles'
                     team_id?: string | null
                     pair_id?: string | null
                     seed_rank?: number | null
                     performance_score?: number | null
                     team_order?: number | null
-                    affiliation_key?: string | null
+                    region_name?: string | null
+                    custom_display_name?: string | null
                     is_active?: boolean
                     is_checked_in?: boolean
                     day_token?: string | null
@@ -274,13 +270,14 @@ export type Database = {
                 Update: {
                     id?: string
                     tournament_id?: string
-                    entry_type?: 'team' | 'pair'
+                    entry_type?: 'team' | 'doubles' | 'singles'
                     team_id?: string | null
                     pair_id?: string | null
                     seed_rank?: number | null
                     performance_score?: number | null
                     team_order?: number | null
-                    affiliation_key?: string | null
+                    region_name?: string | null
+                    custom_display_name?: string | null
                     is_active?: boolean
                     is_checked_in?: boolean
                     day_token?: string | null
@@ -297,7 +294,7 @@ export type Database = {
                     round_index: number | null
                     slot_index: number | null
                     match_number: number | null
-                    umpire_id: string
+                    umpire_id: string | null
                     court_number: number | null
                     status: 'pending' | 'inprogress' | 'paused' | 'finished'
                     version: number
@@ -318,7 +315,7 @@ export type Database = {
                     round_index?: number | null
                     slot_index?: number | null
                     match_number?: number | null
-                    umpire_id: string
+                    umpire_id?: string | null
                     court_number?: number | null
                     status?: 'pending' | 'inprogress' | 'paused' | 'finished'
                     version?: number
@@ -339,7 +336,7 @@ export type Database = {
                     round_index?: number | null
                     slot_index?: number | null
                     match_number?: number | null
-                    umpire_id?: string
+                    umpire_id?: string | null
                     court_number?: number | null
                     status?: 'pending' | 'inprogress' | 'paused' | 'finished'
                     version?: number
@@ -486,7 +483,7 @@ export type Database = {
                     record_id: string
                     old_data: Json | null
                     new_data: Json | null
-                    performed_by: string | null
+                    performed_by: string
                     performed_at: string
                 }
                 Insert: {
@@ -496,7 +493,7 @@ export type Database = {
                     record_id: string
                     old_data?: Json | null
                     new_data?: Json | null
-                    performed_by?: string | null
+                    performed_by: string
                     performed_at?: string
                 }
                 Update: {
@@ -506,8 +503,113 @@ export type Database = {
                     record_id?: string
                     old_data?: Json | null
                     new_data?: Json | null
-                    performed_by?: string | null
+                    performed_by?: string
                     performed_at?: string
+                }
+            }
+            notifications: {
+                Row: {
+                    id: string
+                    user_id: string
+                    type: 'auth_key' | 'match_start' | 'umpire_assignment' | 'tournament_update'
+                    title: string
+                    message: string
+                    day_token: string | null
+                    match_id: string | null
+                    tournament_id: string | null
+                    is_read: boolean
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    user_id: string
+                    type: 'auth_key' | 'match_start' | 'umpire_assignment' | 'tournament_update'
+                    title: string
+                    message: string
+                    day_token?: string | null
+                    match_id?: string | null
+                    tournament_id?: string | null
+                    is_read?: boolean
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    user_id?: string
+                    type?: 'auth_key' | 'match_start' | 'umpire_assignment' | 'tournament_update'
+                    title?: string
+                    message?: string
+                    day_token?: string | null
+                    match_id?: string | null
+                    tournament_id?: string | null
+                    is_read?: boolean
+                    created_at?: string
+                }
+            }
+            contact_requests: {
+                Row: {
+                    id: string
+                    user_id: string | null
+                    category: 'technical' | 'feature' | 'other'
+                    email: string
+                    subject: string
+                    message: string
+                    status: 'pending' | 'in_progress' | 'resolved' | 'closed'
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    user_id?: string | null
+                    category: 'technical' | 'feature' | 'other'
+                    email: string
+                    subject: string
+                    message: string
+                    status?: 'pending' | 'in_progress' | 'resolved' | 'closed'
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: string
+                    user_id?: string | null
+                    category?: 'technical' | 'feature' | 'other'
+                    email?: string
+                    subject?: string
+                    message?: string
+                    status?: 'pending' | 'in_progress' | 'resolved' | 'closed'
+                    created_at?: string
+                    updated_at?: string
+                }
+            }
+            user_consents: {
+                Row: {
+                    id: string
+                    user_id: string
+                    consent_type: 'terms' | 'privacy'
+                    version: string
+                    agreed_at: string
+                    ip_address: string | null
+                    user_agent: string | null
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    user_id: string
+                    consent_type: 'terms' | 'privacy'
+                    version: string
+                    agreed_at?: string
+                    ip_address?: string | null
+                    user_agent?: string | null
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    user_id?: string
+                    consent_type?: 'terms' | 'privacy'
+                    version?: string
+                    agreed_at?: string
+                    ip_address?: string | null
+                    user_agent?: string | null
+                    created_at?: string
                 }
             }
         }

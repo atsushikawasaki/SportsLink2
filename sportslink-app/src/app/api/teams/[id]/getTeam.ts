@@ -1,32 +1,35 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
-// GET /api/teams/:id - チーム詳細取得
+// GET /api/teams/:id - チーム詳細取得（actual_team_id で紐づく選手を別取得）
 export async function getTeam(id: string) {
     try {
         const supabase = await createClient();
 
-        const { data, error } = await supabase
+        const { data: team, error: teamError } = await supabase
             .from('teams')
-            .select(`
-                *,
-                tournament_players (
-                    id,
-                    player_name,
-                    player_type
-                )
-            `)
+            .select('id, name, team_manager_user_id, created_at')
             .eq('id', id)
             .single();
 
-        if (error) {
+        if (teamError || !team) {
             return NextResponse.json(
                 { error: 'チームが見つかりません', code: 'E-NOT-FOUND' },
                 { status: 404 }
             );
         }
 
-        return NextResponse.json(data);
+        const { data: players } = await supabase
+            .from('tournament_players')
+            .select('id, player_name, player_type, sort_order, created_at')
+            .eq('actual_team_id', id)
+            .order('sort_order', { ascending: true, nullsFirst: true })
+            .order('created_at', { ascending: true });
+
+        return NextResponse.json({
+            ...team,
+            tournament_players: players ?? [],
+        });
     } catch (error) {
         console.error('Get team error:', error);
         return NextResponse.json(

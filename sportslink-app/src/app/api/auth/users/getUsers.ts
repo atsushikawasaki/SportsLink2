@@ -6,8 +6,10 @@ import { isAdmin } from '@/lib/permissions';
 export async function getUsers(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
-        const limit = parseInt(searchParams.get('limit') || '100');
-        const offset = parseInt(searchParams.get('offset') || '0');
+        const limitParam = searchParams.get('limit');
+        const offsetParam = searchParams.get('offset');
+        const limit = Math.max(1, Number.isNaN(parseInt(limitParam || '100', 10)) ? 100 : parseInt(limitParam || '100', 10));
+        const offset = Math.max(0, Number.isNaN(parseInt(offsetParam || '0', 10)) ? 0 : parseInt(offsetParam || '0', 10));
         const search = searchParams.get('search') || '';
 
         const supabase = await createClient();

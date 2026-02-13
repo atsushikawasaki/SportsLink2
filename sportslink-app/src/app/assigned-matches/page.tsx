@@ -23,7 +23,6 @@ interface Match {
         pair_number: number;
         teams?: {
             name: string;
-            school_name: string;
         };
     }>;
     tournaments?: {

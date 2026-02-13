@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Play, Edit, Users, Plus, Save, X } from 'lucide-react';
 import NotificationCenter from '@/components/NotificationCenter';
@@ -29,7 +29,6 @@ interface Match {
         teams?: {
             id: string;
             name: string;
-            school_name: string;
             team_manager_user_id?: string | null;
         };
         tournament_players?: Array<{
@@ -60,7 +59,9 @@ interface PairForm {
 export default function MatchDetailPage() {
     const params = useParams();
     const router = useRouter();
+    const searchParams = useSearchParams();
     const matchId = params.matchId as string;
+    const tournamentIdFromQuery = searchParams.get('tournamentId');
     const { user } = useAuthStore();
 
     const [match, setMatch] = useState<Match | null>(null);
@@ -136,7 +137,7 @@ export default function MatchDetailPage() {
         setShowPairForm(true);
     };
 
-    const handleEditPair = (pair: any) => {
+    const handleEditPair = (pair: NonNullable<Match['match_pairs']>[number]) => {
         setPairForms((prev) => ({
             ...prev,
             [pair.pair_number]: {
@@ -205,16 +206,18 @@ export default function MatchDetailPage() {
     }
 
     if (error || !match) {
+        const backHref = tournamentIdFromQuery ? `/tournaments/${tournamentIdFromQuery}/draw` : '/dashboard';
+        const backLabel = tournamentIdFromQuery ? 'ドローに戻る' : 'ダッシュボードに戻る';
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-12">
                 <div className="max-w-4xl mx-auto px-4">
                     <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-700/50 p-8">
                         <p className="text-red-400 text-center mb-4">{error || '試合が見つかりません'}</p>
                         <Link
-                            href="/dashboard"
+                            href={backHref}
                             className="block text-center text-blue-400 hover:text-blue-300 transition-colors"
                         >
-                            ダッシュボードに戻る
+                            {backLabel}
                         </Link>
                     </div>
                 </div>
@@ -229,10 +232,17 @@ export default function MatchDetailPage() {
                 <header className="bg-slate-800/50 backdrop-blur-xl border-b border-slate-700/50 mb-8">
                     <div className="flex items-center justify-between py-4">
                         <Breadcrumbs
-                            items={[
-                                { label: '担当試合一覧', href: '/assigned-matches' },
-                                { label: match?.round_name || '試合詳細' },
-                            ]}
+                            items={
+                                tournamentIdFromQuery
+                                    ? [
+                                          { label: '大会ドロー', href: `/tournaments/${tournamentIdFromQuery}/draw` },
+                                          { label: match?.round_name || '試合詳細' },
+                                      ]
+                                    : [
+                                          { label: '担当試合一覧', href: '/assigned-matches' },
+                                          { label: match?.round_name || '試合詳細' },
+                                      ]
+                            }
                         />
                         <div className="flex items-center gap-4">
                             <NotificationCenter />

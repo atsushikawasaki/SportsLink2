@@ -147,7 +147,7 @@ describe('getTournaments', () => {
   });
 
   it('should handle invalid limit parameter', async () => {
-    const mockTournaments = [];
+    const mockTournaments: { id: string; name?: string }[] = [];
 
     mockRange.mockResolvedValue({
       data: mockTournaments,
@@ -166,7 +166,7 @@ describe('getTournaments', () => {
   });
 
   it('should handle invalid offset parameter', async () => {
-    const mockTournaments = [];
+    const mockTournaments: { id: string; name?: string }[] = [];
 
     mockRange.mockResolvedValue({
       data: mockTournaments,

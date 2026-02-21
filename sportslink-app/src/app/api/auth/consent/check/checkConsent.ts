@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { NextResponse } from 'next/server';
 import { getConsentVersions } from '@/lib/consent-versions';
 
@@ -20,8 +21,9 @@ export async function checkConsent(request: Request) {
             );
         }
 
-        // ユーザーの最新の同意ログを取得
-        const { data: consents, error: consentError } = await supabase
+        // ユーザーの最新の同意ログを取得（adminでRLSをバイパスし、reagreeで挿入した直後も確実に取得）
+        const adminClient = createAdminClient();
+        const { data: consents, error: consentError } = await adminClient
             .from('user_consents')
             .select('*')
             .eq('user_id', user.id)

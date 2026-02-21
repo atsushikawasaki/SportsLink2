@@ -13,7 +13,7 @@ export async function getDraw(id: string) {
         }
         const canRead = await isAdmin(user.id) || await isTournamentAdmin(user.id, id);
         if (!canRead) {
-            return NextResponse.json({ error: 'この大会のドローを閲覧する権限がありません', code: 'E-RLS-002' }, { status: 403 });
+            return NextResponse.json({ error: 'この大会のドローを閲覧する権限がありません', code: 'E-AUTH-002' }, { status: 403 });
         }
 
         const adminClient = createAdminClient();
@@ -36,6 +36,7 @@ export async function getDraw(id: string) {
         // 各フェーズの試合を取得（phase が無い場合は試合も無い）
         const phaseIds = phases?.map((p) => p.id) ?? [];
         let matches: Record<string, unknown>[] = [];
+        let canRegenerate = true;
         if (phaseIds.length > 0) {
             const { data: matchesData, error: matchesError } = await adminClient
                 .from('matches')
@@ -67,6 +68,32 @@ export async function getDraw(id: string) {
                 );
             }
             matches = (matchesData ?? []) as Record<string, unknown>[];
+
+            const inProgressOrFinished = matches.filter(
+                (m) => (m.status as string) === 'inprogress' || (m.status as string) === 'finished'
+            );
+            const hasInProgress = inProgressOrFinished.some((m) => (m.status as string) === 'inprogress');
+            let canRegenerate = !hasInProgress;
+            if (!hasInProgress && inProgressOrFinished.length > 0) {
+                const finishedMatchIds = inProgressOrFinished
+                    .filter((m) => (m.status as string) === 'finished')
+                    .map((m) => m.id as string);
+                const { data: scoresData } = await adminClient
+                    .from('match_scores')
+                    .select('match_id, winning_reason')
+                    .in('match_id', finishedMatchIds);
+                const scores = (scoresData ?? []) as { match_id: string; winning_reason: string }[];
+                const matchIdToReasons = scores.reduce<Record<string, string[]>>((acc, s) => {
+                    if (!acc[s.match_id]) acc[s.match_id] = [];
+                    acc[s.match_id].push(s.winning_reason);
+                    return acc;
+                }, {});
+                const hasRealFinished = finishedMatchIds.some((matchId) => {
+                    const reasons = matchIdToReasons[matchId] ?? [];
+                    return !(reasons.length === 1 && reasons[0] === 'DEFAULT');
+                });
+                canRegenerate = !hasRealFinished;
+            }
 
             // match_slots はスキーマキャッシュのリレーションが無いため別クエリで取得して結合
             const matchIds = matches.map((m) => m.id as string);
@@ -122,6 +149,7 @@ export async function getDraw(id: string) {
         return NextResponse.json({
             phases: phases ?? [],
             matches,
+            can_regenerate: canRegenerate,
         });
     } catch (error) {
         console.error('Get draw error:', error);

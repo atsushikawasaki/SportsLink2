@@ -41,6 +41,34 @@ interface Match {
     match_pairs?: MatchPair[];
 }
 
+function MatchCard({
+    match,
+    getStatusBadge,
+    getTeamNames,
+    getScore,
+    onNavigate,
+}: {
+    match: Match;
+    getStatusBadge: (status: string) => React.ReactNode;
+    getTeamNames: (match: Match) => string;
+    getScore: (match: Match) => string;
+    onNavigate: (matchId: string) => void;
+}) {
+    return (
+        <div
+            className="p-4 bg-slate-700 rounded-lg border border-slate-600 hover:border-blue-500 transition-colors cursor-pointer"
+            onClick={() => onNavigate(match.id)}
+        >
+            <div className="flex items-center justify-between">
+                <span className="text-white font-medium">{match.round_name}</span>
+                {getStatusBadge(match.status)}
+            </div>
+            <p className="text-slate-300 text-sm mt-1">{getTeamNames(match)}</p>
+            <p className="text-slate-400 text-xs mt-1">{getScore(match)}</p>
+        </div>
+    );
+}
+
 export default function ScoringListPage() {
     const router = useRouter();
     const { user, isAuthenticated } = useAuthStore();
@@ -48,7 +76,7 @@ export default function ScoringListPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
-    const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'inprogress' | 'finished'>('all');
+    const [statusFilter, setStatusFilter] = useState<MatchStatusFilter>('all');
     const [tournamentFilter, setTournamentFilter] = useState<string>('all');
 
     const fetchMatches = useCallback(async () => {
@@ -69,7 +97,7 @@ export default function ScoringListPage() {
             }
 
             // 審判の担当試合一覧を取得
-            const response = await fetch(`/api/matches/umpire/${user.id}?${params.toString()}`);
+            const response = await fetch(`/api/matches/umpire/${user?.id ?? ''}?${params.toString()}`);
 
             if (!response.ok) {
                 const result = await response.json();
@@ -124,23 +152,17 @@ export default function ScoringListPage() {
         }
     }, []);
 
-    const getTeamNames = useCallback((match: Match) => {
+    const getTeamNames = useCallback((match: Match): string => {
         const pairs = match.match_pairs || [];
-        const teamA = pairs.find((p) => p.pair_number === 1)?.teams;
-        const teamB = pairs.find((p) => p.pair_number === 2)?.teams;
-        return {
-            teamA: teamA?.name || 'チームA',
-            teamB: teamB?.name || 'チームB',
-        };
+        const teamA = pairs.find((p) => p.pair_number === 1)?.teams?.name || 'チームA';
+        const teamB = pairs.find((p) => p.pair_number === 2)?.teams?.name || 'チームB';
+        return `${teamA} vs ${teamB}`;
     }, []);
 
-    const getScore = useCallback((match: Match) => {
+    const getScore = useCallback((match: Match): string => {
         const score = match.match_scores?.[0];
-        if (!score) return { scoreA: 0, scoreB: 0 };
-        return {
-            scoreA: score.game_count_a || 0,
-            scoreB: score.game_count_b || 0,
-        };
+        if (!score) return '0 - 0';
+        return `${score.game_count_a ?? 0} - ${score.game_count_b ?? 0}`;
     }, []);
 
     // サーバーサイドでフィルタリングされているため、フロントエンドでのフィルタリングは不要
@@ -276,7 +298,7 @@ export default function ScoringListPage() {
                                     getStatusBadge={getStatusBadge}
                                     getTeamNames={getTeamNames}
                                     getScore={getScore}
-                                    onNavigate={(matchId) => router.push(`/scoring/${matchId}`)}
+                                    onNavigate={(matchId: string) => router.push(`/scoring/${matchId}`)}
                                 />
                             ))}
                         </div>

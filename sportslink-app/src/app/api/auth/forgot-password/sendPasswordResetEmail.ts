@@ -1,8 +1,17 @@
+import { checkRateLimit } from '@/lib/rateLimit';
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
 export async function sendPasswordResetEmail(request: Request) {
     try {
+        const { allowed, retryAfter } = checkRateLimit(request, 'forgot-password');
+        if (!allowed) {
+            return NextResponse.json(
+                { error: 'リクエストが多すぎます。しばらく経ってからお試しください。', code: 'E-RATE-001' },
+                { status: 429, headers: retryAfter ? { 'Retry-After': String(retryAfter) } : undefined }
+            );
+        }
+
         const { email } = await request.json();
 
         if (!email) {
@@ -12,11 +21,19 @@ export async function sendPasswordResetEmail(request: Request) {
             );
         }
 
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+        if (!appUrl && process.env.NODE_ENV === 'production') {
+            return NextResponse.json(
+                { error: 'サーバー設定エラーです。管理者に連絡してください。', code: 'E-SERVER-001' },
+                { status: 500 }
+            );
+        }
+        const redirectTo = `${appUrl || 'http://localhost:3000'}/support/reset-password`;
+
         const supabase = await createClient();
 
-        // Send password reset email via Supabase Auth
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
-            redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/support/reset-password`,
+            redirectTo,
         });
 
         if (error) {

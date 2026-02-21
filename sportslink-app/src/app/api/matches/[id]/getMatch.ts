@@ -17,7 +17,7 @@ export async function getMatch(id: string) {
         // 試合を取得（まず tournament_id を得るため admin で取得）
         const { data: matchRow, error: fetchError } = await adminClient
             .from('matches')
-            .select('id, tournament_id')
+            .select('id, tournament_id, umpire_id')
             .eq('id', id)
             .single();
 

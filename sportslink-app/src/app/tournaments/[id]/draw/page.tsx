@@ -83,6 +83,7 @@ export default function DrawPage() {
     const [editingSlots, setEditingSlots] = useState<Record<string, Partial<MatchSlot>>>({});
     const [isSaving, setIsSaving] = useState(false);
     const [umpireInitial, setUmpireInitial] = useState<'guest' | 'unassigned' | 'me'>('me');
+    const [canRegenerate, setCanRegenerate] = useState(true);
 
     // スロットの対戦者表示名（選手名・チーム名）を組み立て
     const getSlotDisplayLabel = (slot: MatchSlot): string => {
@@ -143,6 +144,7 @@ export default function DrawPage() {
             if (drawRes.ok) {
                 setPhases(drawData.phases || []);
                 setMatches(drawData.matches || []);
+                setCanRegenerate(drawData.can_regenerate !== false);
                 if (drawData.phases && drawData.phases.length > 0) {
                     setSelectedPhase(drawData.phases[0].id);
                 }
@@ -179,6 +181,12 @@ export default function DrawPage() {
     const handleGenerate = async () => {
         if (!tournamentId) {
             alert('大会情報の読み込みに失敗しています。ページを再読み込みしてください。');
+            return;
+        }
+        if (!canRegenerate) {
+            alert(
+                '試合が開始または終了済みのため、ドローを再生成できません。スコアや結果がある試合がある場合は再生成を禁止しています。'
+            );
             return;
         }
         if (!confirm('既存のドローは上書きされます。よろしいですか？')) {
@@ -419,7 +427,8 @@ export default function DrawPage() {
                                 </button>
                                 <button
                                     onClick={handleGenerate}
-                                    disabled={isGenerating}
+                                    disabled={isGenerating || !canRegenerate}
+                                    title={!canRegenerate ? '試合開始または終了済みの試合があるため再生成できません' : undefined}
                                     className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-lg shadow-lg hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
                                 >
                                     <RefreshCw className={`w-4 h-4 ${isGenerating ? 'animate-spin' : ''}`} />
@@ -462,7 +471,8 @@ export default function DrawPage() {
                         <p className="text-slate-400 text-lg mb-4">ドローが生成されていません</p>
                         <button
                             onClick={handleGenerate}
-                            disabled={isGenerating}
+                            disabled={isGenerating || !canRegenerate}
+                            title={!canRegenerate ? '試合開始または終了済みの試合があるため再生成できません' : undefined}
                             className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-lg shadow-lg hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 transition-all duration-200"
                         >
                             {isGenerating ? '生成中...' : 'ドローを生成'}

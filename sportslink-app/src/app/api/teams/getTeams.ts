@@ -20,7 +20,7 @@ export async function getTeams(request: Request) {
                 .select('team_id')
                 .eq('tournament_id', tournamentId)
                 .not('team_id', 'is', null);
-            teamIds = [...new Set((entryRows || []).map((r) => r.team_id).filter(Boolean))] as string[];
+            teamIds = Array.from(new Set((entryRows || []).map((r) => r.team_id).filter(Boolean))) as string[];
         }
 
         let query = supabase

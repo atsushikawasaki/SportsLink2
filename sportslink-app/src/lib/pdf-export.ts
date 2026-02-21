@@ -56,7 +56,7 @@ export async function exportToPDF(data: TournamentResults) {
         const tableStartY = yPosition;
 
         // ヘッダー
-        doc.setFont(undefined, 'bold');
+        doc.setFont('helvetica', 'bold');
         doc.text('ラウンド', margin, yPosition);
         doc.text('チームA', margin + 40, yPosition);
         doc.text('スコア', margin + 80, yPosition);
@@ -70,7 +70,7 @@ export async function exportToPDF(data: TournamentResults) {
         yPosition += lineHeight;
 
         // データ行
-        doc.setFont(undefined, 'normal');
+        doc.setFont('helvetica', 'normal');
         for (const result of data.results) {
             // ページを超える場合は新しいページを作成
             if (yPosition > pageHeight - margin - lineHeight * 3) {

@@ -51,7 +51,7 @@ export async function getUmpireMatches(umpireId: string, request: Request) {
             console.error('Get umpire matches error:', error);
             // 無限再帰エラーの場合は詳細をログに記録
             if (error.code === '42P17') {
-                console.error('RLS infinite recursion detected. Please apply migration 014.');
+                console.error('RLS infinite recursion detected. Please apply migration 022 or use Admin Client.');
                 console.error('Error details:', {
                     code: error.code,
                     message: error.message,

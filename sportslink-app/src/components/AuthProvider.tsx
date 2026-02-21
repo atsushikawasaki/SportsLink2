@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { createClient } from '@/lib/supabase/client';
+import { getCsrfToken } from '@/lib/csrf';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { setUser, setAccessToken, setLoading, logout, isLoading, hasHydrated } = useAuthStore();
@@ -126,35 +127,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         checkSession();
 
-        // セッション変更を監視
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event, session) => {
                 if (!isMounted) return;
-
                 if (event === 'SIGNED_OUT' || !session) {
                     storeRef.current.logout();
-                    if (!isAuthPage && !isHomePage) {
-                        router.push('/login');
-                    }
+                    if (!isAuthPage && !isHomePage) router.push('/login');
                 } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-                    // セッションが更新された場合、API経由でユーザープロファイルを取得
                     if (session?.user) {
                         try {
                             const profileResponse = await fetch('/api/auth/me', {
                                 method: 'GET',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                },
+                                headers: { 'Content-Type': 'application/json' },
                             });
-
                             if (!isMounted) return;
-
                             if (profileResponse.ok) {
                                 const userProfile = await profileResponse.json();
                                 storeRef.current.setUser(userProfile);
                             } else {
-                                // APIエラーの場合、セッション情報から基本情報を設定
-                                console.warn('Failed to fetch user profile, using session data');
                                 storeRef.current.setUser({
                                     id: session.user.id,
                                     email: session.user.email || '',
@@ -162,9 +152,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                                     created_at: session.user.created_at || new Date().toISOString(),
                                 } as any);
                             }
-                        } catch (fetchError) {
-                            console.warn('Error fetching user profile:', fetchError);
-                            // エラーの場合、セッション情報から基本情報を設定
+                        } catch {
                             if (isMounted) {
                                 storeRef.current.setUser({
                                     id: session.user.id,
@@ -174,7 +162,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                                 } as any);
                             }
                         }
-
                         storeRef.current.setAccessToken(session.access_token);
                     }
                 }
@@ -187,6 +174,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [supabase, hasHydrated]);
+
+    useEffect(() => {
+        const origFetch = window.fetch;
+        window.fetch = function (
+            input: RequestInfo | URL,
+            init?: RequestInit
+        ): Promise<Response> {
+            const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
+            const method = (init?.method ?? (input instanceof Request ? input.method : 'GET'))?.toUpperCase();
+            if (
+                (url.startsWith('/api/') || (typeof window !== 'undefined' && url.startsWith(`${window.location.origin}/api/`))) &&
+                ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)
+            ) {
+                const token = getCsrfToken();
+                if (token) {
+                    const headers = new Headers(init?.headers);
+                    headers.set('X-CSRF-Token', token);
+                    return origFetch.call(this, input, { ...init, headers });
+                }
+            }
+            return origFetch.call(this, input, init);
+        };
+        return () => {
+            window.fetch = origFetch;
+        };
+    }, []);
 
     // ローディング中はローディングUIを表示（ホームページと認証ページ以外）
     // hydrationが完了していない場合もローディング表示

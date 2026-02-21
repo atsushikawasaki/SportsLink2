@@ -47,7 +47,7 @@ export async function createTournamentEntry(tournamentId: string, request: Reque
         }
         const hasPermission = await isAdmin(authUser.id) || await isTournamentAdmin(authUser.id, tournamentId);
         if (!hasPermission) {
-            return NextResponse.json({ error: 'この操作を実行する権限がありません', code: 'E-RLS-002' }, { status: 403 });
+            return NextResponse.json({ error: 'この操作を実行する権限がありません', code: 'E-AUTH-002' }, { status: 403 });
         }
 
         const body = await request.json();
@@ -208,6 +208,7 @@ export async function createTournamentEntry(tournamentId: string, request: Reque
             .select('id')
             .single();
         if (p1Error || !player1) {
+            await rollbackEntry(adminClient, entryId);
             return NextResponse.json(
                 { error: p1Error?.message || '選手1の登録に失敗しました', code: 'E-DB-001' },
                 { status: 500 }
@@ -230,6 +231,7 @@ export async function createTournamentEntry(tournamentId: string, request: Reque
                 .select('id')
                 .single();
             if (p2Error || !player2) {
+                await rollbackEntry(adminClient, entryId);
                 return NextResponse.json(
                     { error: p2Error?.message || '選手2の登録に失敗しました', code: 'E-DB-001' },
                     { status: 500 }
@@ -250,6 +252,7 @@ export async function createTournamentEntry(tournamentId: string, request: Reque
             .select('id')
             .single();
         if (pairError || !newPair) {
+            await rollbackEntry(adminClient, entryId);
             return NextResponse.json(
                 { error: pairError?.message || 'ペアの登録に失敗しました', code: 'E-DB-001' },
                 { status: 500 }
@@ -260,6 +263,7 @@ export async function createTournamentEntry(tournamentId: string, request: Reque
             .update(({ pair_id: (newPair as { id: string }).id } as TournamentEntriesUpdate) as never)
             .eq('id', entryId);
         if (updateEntryError) {
+            await rollbackEntry(adminClient, entryId);
             return NextResponse.json(
                 { error: updateEntryError.message || 'エントリーの更新に失敗しました', code: 'E-DB-001' },
                 { status: 500 }
@@ -273,6 +277,15 @@ export async function createTournamentEntry(tournamentId: string, request: Reque
             { status: 500 }
         );
     }
+}
+
+async function rollbackEntry(
+    adminClient: ReturnType<typeof createAdminClient>,
+    entryId: string
+): Promise<void> {
+    await adminClient.from('tournament_pairs').delete().eq('entry_id', entryId);
+    await adminClient.from('tournament_players').delete().eq('entry_id', entryId);
+    await adminClient.from('tournament_entries').delete().eq('id', entryId);
 }
 
 async function resolveTeamId(

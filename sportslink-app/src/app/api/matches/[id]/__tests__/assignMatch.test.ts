@@ -1,17 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { assignMatch } from '../assign/assignMatch';
 
-// Supabaseクライアントをモック
 const mockUpdate = vi.fn();
 const mockEq = vi.fn();
 const mockSelect = vi.fn();
 const mockSingle = vi.fn();
 const mockFrom = vi.fn();
+const mockGetUser = vi.fn().mockResolvedValue({
+  data: { user: { id: 'user-123' } },
+  error: null,
+});
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
+    auth: { getUser: mockGetUser },
     from: mockFrom,
   })),
+}));
+
+vi.mock('@/lib/permissions', () => ({
+  isUmpire: vi.fn().mockResolvedValue(true),
+  isTournamentAdmin: vi.fn().mockResolvedValue(false),
+  isAdmin: vi.fn().mockResolvedValue(false),
 }));
 
 // Admin client: from().select().eq().eq().eq().is().maybeSingle() and from().update().eq() etc.
@@ -65,6 +75,46 @@ describe('assignMatch', () => {
       }
       return { single: mockSingle };
     });
+  });
+
+  it('should return 401 when not authenticated', async () => {
+    mockGetUser.mockResolvedValueOnce({ data: { user: null }, error: null });
+
+    const request = new Request('http://localhost/api/matches/match-123/assign', {
+      method: 'PUT',
+      body: JSON.stringify({ umpire_id: 'umpire-456' }),
+    });
+
+    const response = await assignMatch('match-123', request);
+    const data = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(data.error).toContain('認証が必要です');
+    expect(data.code).toBe('E-AUTH-001');
+  });
+
+  it('should return 403 when user has no permission', async () => {
+    const { isUmpire, isTournamentAdmin, isAdmin } = await import('@/lib/permissions');
+    vi.mocked(isUmpire).mockResolvedValueOnce(false);
+    vi.mocked(isTournamentAdmin).mockResolvedValueOnce(false);
+    vi.mocked(isAdmin).mockResolvedValueOnce(false);
+
+    mockSingle.mockResolvedValueOnce({
+      data: { tournament_id: 'tournament-123', umpire_id: null },
+      error: null,
+    });
+
+    const request = new Request('http://localhost/api/matches/match-123/assign', {
+      method: 'PUT',
+      body: JSON.stringify({ umpire_id: 'umpire-456' }),
+    });
+
+    const response = await assignMatch('match-123', request);
+    const data = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(data.error).toContain('この試合の割当を変更する権限がありません');
+    expect(data.code).toBe('E-AUTH-002');
   });
 
   it('should assign umpire to match', async () => {

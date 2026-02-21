@@ -48,6 +48,7 @@ interface Player {
     id: string;
     player_name: string;
     player_type: string;
+    team_id?: string;
 }
 
 interface PairForm {

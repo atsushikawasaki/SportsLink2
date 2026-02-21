@@ -1,10 +1,29 @@
+import { isAdmin, isTournamentAdmin } from '@/lib/permissions';
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
-// GET /api/tournaments/:id/entries - エントリー一覧取得
+// GET /api/tournaments/:id/entries - エントリー一覧取得（大会管理者または管理者）
 export async function getTournamentEntries(id: string) {
     try {
         const supabase = await createClient();
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+        if (authError || !authUser) {
+            return NextResponse.json(
+                { error: '認証が必要です', code: 'E-AUTH-001' },
+                { status: 401 }
+            );
+        }
+
+        const [tournamentAdmin, admin] = await Promise.all([
+            isTournamentAdmin(authUser.id, id),
+            isAdmin(authUser.id),
+        ]);
+        if (!tournamentAdmin && !admin) {
+            return NextResponse.json(
+                { error: 'この大会のエントリーを閲覧する権限がありません', code: 'E-AUTH-002' },
+                { status: 403 }
+            );
+        }
 
         // Tournament_Entriesを取得し、関連するTeams、Tournament_Pairs、Tournament_Playersも取得
         // まず基本的なエントリー情報を取得（外部キー参照の問題を回避するため、pair_idは後で処理）

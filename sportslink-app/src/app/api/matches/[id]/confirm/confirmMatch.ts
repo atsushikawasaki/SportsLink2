@@ -1,12 +1,19 @@
+import { isAdmin, isTournamentAdmin, isUmpire } from '@/lib/permissions';
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
-// POST /api/matches/:id/confirm - 試合確定（大会運営者のみ）
+// POST /api/matches/:id/confirm - 試合確定（審判または大会管理者または管理者）
 export async function confirmMatch(id: string) {
     try {
         const supabase = await createClient();
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+        if (authError || !authUser) {
+            return NextResponse.json(
+                { error: '認証が必要です', code: 'E-AUTH-001' },
+                { status: 401 }
+            );
+        }
 
-        // Check if match is finished
         const { data: match, error: fetchError } = await supabase
             .from('matches')
             .select('status, tournament_id')
@@ -17,6 +24,19 @@ export async function confirmMatch(id: string) {
             return NextResponse.json(
                 { error: '試合が見つかりません', code: 'E-NOT-FOUND' },
                 { status: 404 }
+            );
+        }
+
+        const tournamentId = match.tournament_id as string;
+        const [umpire, tournamentAdmin, admin] = await Promise.all([
+            isUmpire(authUser.id, tournamentId, id),
+            isTournamentAdmin(authUser.id, tournamentId),
+            isAdmin(authUser.id),
+        ]);
+        if (!umpire && !tournamentAdmin && !admin) {
+            return NextResponse.json(
+                { error: 'この試合を確定する権限がありません', code: 'E-AUTH-002' },
+                { status: 403 }
             );
         }
 

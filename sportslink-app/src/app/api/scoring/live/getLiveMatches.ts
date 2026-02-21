@@ -1,7 +1,7 @@
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { NextResponse } from 'next/server';
 
-// GET /api/scoring/live - ライブ試合一覧取得
+// GET /api/scoring/live - ライブ試合一覧取得（match_pairs RLS 再帰を避けるため admin 使用）
 export async function getLiveMatches(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
@@ -11,7 +11,7 @@ export async function getLiveMatches(request: Request) {
         const offset = Math.max(0, Number.isNaN(parseInt(offsetParam || '0', 10)) ? 0 : parseInt(offsetParam || '0', 10));
         const tournamentId = searchParams.get('tournament_id');
 
-        const supabase = await createClient();
+        const supabase = createAdminClient();
 
         let query = supabase
             .from('matches')
@@ -45,7 +45,7 @@ export async function getLiveMatches(request: Request) {
             console.error('Get live matches error:', error);
             // 無限再帰エラーの場合は詳細をログに記録
             if (error.code === '42P17') {
-                console.error('RLS infinite recursion detected. Please apply migration 014.');
+                console.error('RLS infinite recursion detected. Please apply migration 022 or use Admin Client.');
             }
             return NextResponse.json(
                 { 

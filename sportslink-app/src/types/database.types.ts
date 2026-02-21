@@ -13,24 +13,25 @@ export type Database = {
                 Row: {
                     id: string
                     email: string
-                    display_name: string | null
+                    display_name: string
                     password_hash: string | null
                     created_at: string
                 }
                 Insert: {
                     id?: string
                     email: string
-                    display_name?: string | null
+                    display_name: string
                     password_hash?: string | null
                     created_at?: string
                 }
                 Update: {
                     id?: string
                     email?: string
-                    display_name?: string | null
+                    display_name?: string
                     password_hash?: string | null
                     created_at?: string
                 }
+                Relationships: []
             }
             tournaments: {
                 Row: {
@@ -72,6 +73,7 @@ export type Database = {
                     created_by_user_id?: string
                     created_at?: string
                 }
+                Relationships: []
             }
             user_permissions: {
                 Row: {
@@ -81,7 +83,7 @@ export type Database = {
                     tournament_id: string | null
                     team_id: string | null
                     match_id: string | null
-                    created_at: string
+                    created_at: string | null
                 }
                 Insert: {
                     id?: string
@@ -90,7 +92,7 @@ export type Database = {
                     tournament_id?: string | null
                     team_id?: string | null
                     match_id?: string | null
-                    created_at?: string
+                    created_at?: string | null
                 }
                 Update: {
                     id?: string
@@ -99,8 +101,9 @@ export type Database = {
                     tournament_id?: string | null
                     team_id?: string | null
                     match_id?: string | null
-                    created_at?: string
+                    created_at?: string | null
                 }
+                Relationships: []
             }
             teams: {
                 Row: {
@@ -121,6 +124,7 @@ export type Database = {
                     team_manager_user_id?: string | null
                     created_at?: string
                 }
+                Relationships: []
             }
             tournament_players: {
                 Row: {
@@ -128,7 +132,7 @@ export type Database = {
                     entry_id: string | null
                     actual_team_id: string
                     player_name: string
-                    player_type: '前衛' | '後衛' | '両方'
+                    player_type: '前衛' | '後衛' | '両方' | null
                     sort_order: number | null
                     created_at: string
                 }
@@ -137,7 +141,7 @@ export type Database = {
                     entry_id?: string | null
                     actual_team_id: string
                     player_name: string
-                    player_type: '前衛' | '後衛' | '両方'
+                    player_type?: '前衛' | '後衛' | '両方' | null
                     sort_order?: number | null
                     created_at?: string
                 }
@@ -146,10 +150,11 @@ export type Database = {
                     entry_id?: string | null
                     actual_team_id?: string
                     player_name?: string
-                    player_type?: '前衛' | '後衛' | '両方'
+                    player_type?: '前衛' | '後衛' | '両方' | null
                     sort_order?: number | null
                     created_at?: string
                 }
+                Relationships: []
             }
             tournament_pairs: {
                 Row: {
@@ -176,6 +181,7 @@ export type Database = {
                     player_2_id?: string | null
                     created_at?: string
                 }
+                Relationships: []
             }
             tournament_phases: {
                 Row: {
@@ -202,32 +208,6 @@ export type Database = {
                     phase_type?: 'tournament' | 'league'
                     name?: string
                     sequence?: number
-                    config?: Json
-                    created_at?: string
-                }
-            }
-            tournament_groups: {
-                Row: {
-                    id: string
-                    phase_id: string
-                    name: string
-                    seed_bucket: string | null
-                    config: Json
-                    created_at: string
-                }
-                Insert: {
-                    id?: string
-                    phase_id: string
-                    name: string
-                    seed_bucket?: string | null
-                    config?: Json
-                    created_at?: string
-                }
-                Update: {
-                    id?: string
-                    phase_id?: string
-                    name?: string
-                    seed_bucket?: string | null
                     config?: Json
                     created_at?: string
                 }
@@ -284,6 +264,7 @@ export type Database = {
                     last_checked_in_at?: string | null
                     created_at?: string
                 }
+                Relationships: []
             }
             matches: {
                 Row: {
@@ -349,6 +330,7 @@ export type Database = {
                     winner_source_match_a?: string | null
                     winner_source_match_b?: string | null
                 }
+                Relationships: []
             }
             match_pairs: {
                 Row: {
@@ -378,6 +360,7 @@ export type Database = {
                     player_2_id?: string | null
                     created_at?: string
                 }
+                Relationships: []
             }
             match_slots: {
                 Row: {
@@ -389,7 +372,7 @@ export type Database = {
                     entry_id: string | null
                     source_match_id: string | null
                     placeholder_label: string | null
-                    created_at: string
+                    created_at: string | null
                 }
                 Insert: {
                     id?: string
@@ -413,6 +396,7 @@ export type Database = {
                     placeholder_label?: string | null
                     created_at?: string
                 }
+                Relationships: []
             }
             points: {
                 Row: {
@@ -474,13 +458,14 @@ export type Database = {
                     ended_at?: string | null
                     winning_reason?: 'NORMAL' | 'RETIRE' | 'DEFAULT' | null
                 }
+                Relationships: []
             }
             audit_logs: {
                 Row: {
                     id: string
                     table_name: string
                     operation_type: 'INSERT' | 'UPDATE' | 'DELETE'
-                    record_id: string
+                    record_id: string | null
                     old_data: Json | null
                     new_data: Json | null
                     performed_by: string
@@ -490,7 +475,7 @@ export type Database = {
                     id?: string
                     table_name: string
                     operation_type: 'INSERT' | 'UPDATE' | 'DELETE'
-                    record_id: string
+                    record_id?: string | null
                     old_data?: Json | null
                     new_data?: Json | null
                     performed_by: string
@@ -500,12 +485,13 @@ export type Database = {
                     id?: string
                     table_name?: string
                     operation_type?: 'INSERT' | 'UPDATE' | 'DELETE'
-                    record_id?: string
+                    record_id?: string | null
                     old_data?: Json | null
                     new_data?: Json | null
                     performed_by?: string
                     performed_at?: string
                 }
+                Relationships: []
             }
             notifications: {
                 Row: {
@@ -544,6 +530,7 @@ export type Database = {
                     is_read?: boolean
                     created_at?: string
                 }
+                Relationships: []
             }
             contact_requests: {
                 Row: {
@@ -553,9 +540,9 @@ export type Database = {
                     email: string
                     subject: string
                     message: string
-                    status: 'pending' | 'in_progress' | 'resolved' | 'closed'
-                    created_at: string
-                    updated_at: string
+                    status: 'pending' | 'in_progress' | 'resolved' | 'closed' | null
+                    created_at: string | null
+                    updated_at: string | null
                 }
                 Insert: {
                     id?: string
@@ -564,9 +551,9 @@ export type Database = {
                     email: string
                     subject: string
                     message: string
-                    status?: 'pending' | 'in_progress' | 'resolved' | 'closed'
-                    created_at?: string
-                    updated_at?: string
+                    status?: 'pending' | 'in_progress' | 'resolved' | 'closed' | null
+                    created_at?: string | null
+                    updated_at?: string | null
                 }
                 Update: {
                     id?: string
@@ -575,10 +562,11 @@ export type Database = {
                     email?: string
                     subject?: string
                     message?: string
-                    status?: 'pending' | 'in_progress' | 'resolved' | 'closed'
-                    created_at?: string
-                    updated_at?: string
+                    status?: 'pending' | 'in_progress' | 'resolved' | 'closed' | null
+                    created_at?: string | null
+                    updated_at?: string | null
                 }
+                Relationships: []
             }
             user_consents: {
                 Row: {
@@ -586,31 +574,32 @@ export type Database = {
                     user_id: string
                     consent_type: 'terms' | 'privacy'
                     version: string
-                    agreed_at: string
+                    agreed_at: string | null
                     ip_address: string | null
                     user_agent: string | null
-                    created_at: string
+                    created_at: string | null
                 }
                 Insert: {
                     id?: string
                     user_id: string
                     consent_type: 'terms' | 'privacy'
                     version: string
-                    agreed_at?: string
+                    agreed_at?: string | null
                     ip_address?: string | null
                     user_agent?: string | null
-                    created_at?: string
+                    created_at?: string | null
                 }
                 Update: {
                     id?: string
                     user_id?: string
                     consent_type?: 'terms' | 'privacy'
                     version?: string
-                    agreed_at?: string
+                    agreed_at?: string | null
                     ip_address?: string | null
                     user_agent?: string | null
-                    created_at?: string
+                    created_at?: string | null
                 }
+                Relationships: []
             }
         }
         Views: {

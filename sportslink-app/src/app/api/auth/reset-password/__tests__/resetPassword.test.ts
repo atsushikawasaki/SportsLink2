@@ -1,18 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { resetPassword } from '../resetPassword';
 
-// モック
 const mockGetSession = vi.fn();
 const mockUpdateUser = vi.fn();
+const mockSignOut = vi.fn();
 const mockUpdate = vi.fn();
 const mockEq = vi.fn();
 const mockFrom = vi.fn();
+const mockCheckRateLimit = vi.fn().mockReturnValue({ allowed: true });
+
+vi.mock('@/lib/rateLimit', () => ({
+  checkRateLimit: (request: Request, keyPrefix: string) => mockCheckRateLimit(request, keyPrefix),
+}));
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
     auth: {
       getSession: mockGetSession,
       updateUser: mockUpdateUser,
+      signOut: mockSignOut,
     },
     from: mockFrom,
   })),
@@ -27,15 +33,14 @@ vi.mock('bcryptjs', () => ({
 describe('resetPassword', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    
+    mockCheckRateLimit.mockReturnValue({ allowed: true });
+    mockSignOut.mockResolvedValue({ error: null });
     mockFrom.mockReturnValue({
       update: mockUpdate,
     });
-    
     mockUpdate.mockReturnValue({
       eq: mockEq,
     });
-    
     mockEq.mockResolvedValue({
       data: null,
       error: null,
@@ -56,6 +61,23 @@ describe('resetPassword', () => {
     expect(data.code).toBe('E-VER-003');
   });
 
+  it('should return 429 when rate limited', async () => {
+    mockCheckRateLimit.mockReturnValueOnce({ allowed: false, retryAfter: 60 });
+
+    const request = new Request('http://localhost/api/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ password: 'newpassword123' }),
+    });
+
+    const response = await resetPassword(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(429);
+    expect(data.error).toContain('リセット試行が多すぎます');
+    expect(data.code).toBe('E-RATE-001');
+    expect(response.headers.get('Retry-After')).toBe('60');
+  });
+
   it('should return 400 when password is too short', async () => {
     const request = new Request('http://localhost/api/auth/reset-password', {
       method: 'POST',
@@ -68,7 +90,7 @@ describe('resetPassword', () => {
     const data = await response.json();
 
     expect(response.status).toBe(400);
-    expect(data.error).toContain('パスワードは6文字以上で入力してください');
+    expect(data.error).toContain('パスワードは8文字以上で入力してください');
     expect(data.code).toBe('E-VER-003');
   });
 
@@ -84,10 +106,10 @@ describe('resetPassword', () => {
     const data = await response.json();
 
     expect(response.status).toBe(400);
-    expect(data.error).toContain('パスワードは6文字以上で入力してください');
+    expect(data.error).toContain('パスワードは8文字以上で入力してください');
   });
 
-  it('should accept password with 6 characters', async () => {
+  it('should accept password with 8 characters', async () => {
     mockGetSession.mockResolvedValue({
       data: {
         session: {
@@ -107,7 +129,7 @@ describe('resetPassword', () => {
     const request = new Request('http://localhost/api/auth/reset-password', {
       method: 'POST',
       body: JSON.stringify({
-        password: '123456',
+        password: '12345678',
       }),
     });
 

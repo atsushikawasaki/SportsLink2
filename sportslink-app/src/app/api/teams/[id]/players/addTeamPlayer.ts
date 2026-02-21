@@ -1,8 +1,9 @@
+import { isAdmin, isTeamAdmin, isTournamentAdmin } from '@/lib/permissions';
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
 /**
- * POST /api/teams/:id/players - チームに選手を追加（シングルスエントリー＋選手＋ペアを新規作成）
+ * POST /api/teams/:id/players - チームに選手を追加（チーム管理者または大会管理者または管理者）
  * body: { player_name, player_type, tournament_id } （大会に参加するための tournament_id 必須）
  */
 export async function addTeamPlayer(id: string, request: Request) {
@@ -18,6 +19,25 @@ export async function addTeamPlayer(id: string, request: Request) {
         }
 
         const supabase = await createClient();
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+        if (authError || !authUser) {
+            return NextResponse.json(
+                { error: '認証が必要です', code: 'E-AUTH-001' },
+                { status: 401 }
+            );
+        }
+
+        const [teamAdmin, tournamentAdmin, admin] = await Promise.all([
+            isTeamAdmin(authUser.id, id),
+            isTournamentAdmin(authUser.id, tournament_id),
+            isAdmin(authUser.id),
+        ]);
+        if (!teamAdmin && !tournamentAdmin && !admin) {
+            return NextResponse.json(
+                { error: 'このチームに選手を追加する権限がありません', code: 'E-AUTH-002' },
+                { status: 403 }
+            );
+        }
 
         const { data: team, error: teamError } = await supabase
             .from('teams')

@@ -6,11 +6,19 @@ const mockDelete = vi.fn();
 const mockEq = vi.fn();
 const mockIs = vi.fn();
 const mockFrom = vi.fn();
+const mockGetUser = vi.fn();
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
     from: mockFrom,
+    auth: {
+      getUser: mockGetUser,
+    },
   })),
+}));
+
+vi.mock('@/lib/permissions', () => ({
+  isAdmin: vi.fn().mockResolvedValue(true),
 }));
 
 // チェーン可能なモックオブジェクトを作成するヘルパー関数
@@ -35,19 +43,18 @@ const createChain = (result: { data: null; error: null | { message: string } } =
 
 describe('removeRole', () => {
   let defaultChain: ReturnType<typeof createChain>;
-  
+
   beforeEach(() => {
     vi.clearAllMocks();
-    
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: 'admin-user-id' } },
+      error: null,
+    });
     defaultChain = createChain({ data: null, error: null });
-    
     mockFrom.mockImplementation(() => ({
       delete: mockDelete,
     }));
-    
     mockDelete.mockReturnValue(defaultChain);
-    // eq()とis()は常にthisを返す（実装でquery = query.eq(...)のように再代入しているため）
-    // mockReturnThis()を使うと、thisは常にチェーンオブジェクト自体を指す
     mockEq.mockReturnThis();
     mockIs.mockReturnThis();
   });

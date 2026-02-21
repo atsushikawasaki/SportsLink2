@@ -1,17 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { revertMatch } from '../revert/revertMatch';
 
-// Supabaseクライアントをモック
 const mockSelect = vi.fn();
 const mockEq = vi.fn();
 const mockSingle = vi.fn();
 const mockUpdate = vi.fn();
 const mockFrom = vi.fn();
+const mockGetUser = vi.fn().mockResolvedValue({
+  data: { user: { id: 'user-123' } },
+  error: null,
+});
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
+    auth: { getUser: mockGetUser },
     from: mockFrom,
   })),
+}));
+
+vi.mock('@/lib/permissions', () => ({
+  isUmpire: vi.fn().mockResolvedValue(true),
+  isTournamentAdmin: vi.fn().mockResolvedValue(false),
+  isAdmin: vi.fn().mockResolvedValue(false),
 }));
 
 describe('revertMatch', () => {
@@ -40,10 +50,49 @@ describe('revertMatch', () => {
     mockUpdate.mockReturnValue(mockUpdateChain);
   });
 
+  it('should return 401 when not authenticated', async () => {
+    mockGetUser.mockResolvedValueOnce({ data: { user: null }, error: null });
+
+    const response = await revertMatch('match-123');
+    const data = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(data.error).toContain('認証が必要です');
+    expect(data.code).toBe('E-AUTH-001');
+  });
+
+  it('should return 403 when user has no permission to revert match', async () => {
+    const { isUmpire, isTournamentAdmin, isAdmin } = await import('@/lib/permissions');
+    vi.mocked(isUmpire).mockResolvedValueOnce(false);
+    vi.mocked(isTournamentAdmin).mockResolvedValueOnce(false);
+    vi.mocked(isAdmin).mockResolvedValueOnce(false);
+
+    const mockMatch = {
+      id: 'match-123',
+      status: 'finished',
+      tournament_id: 'tournament-123',
+      next_match_id: null,
+      winner_source_match_a: null,
+      winner_source_match_b: null,
+    };
+    mockSingle.mockResolvedValueOnce({ data: mockMatch, error: null });
+
+    const response = await revertMatch('match-123');
+    const data = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(data.error).toContain('この試合を差し戻す権限がありません');
+    expect(data.code).toBe('E-AUTH-002');
+  });
+
   it('should revert finished match to inprogress', async () => {
     const mockMatch = {
       id: 'match-123',
       status: 'finished',
+      tournament_id: 'tournament-123',
+      next_match_id: null,
+      winner_source_match_a: null,
+      winner_source_match_b: null,
     };
 
     const mockRevertedMatch = {
@@ -86,6 +135,10 @@ describe('revertMatch', () => {
     const mockMatch = {
       id: 'match-123',
       status: 'inprogress',
+      tournament_id: 'tournament-123',
+      next_match_id: null,
+      winner_source_match_a: null,
+      winner_source_match_b: null,
     };
 
     mockSingle.mockResolvedValueOnce({
@@ -105,6 +158,10 @@ describe('revertMatch', () => {
     const mockMatch = {
       id: 'match-123',
       status: 'paused',
+      tournament_id: 'tournament-123',
+      next_match_id: null,
+      winner_source_match_a: null,
+      winner_source_match_b: null,
     };
 
     mockSingle.mockResolvedValueOnce({
@@ -123,6 +180,10 @@ describe('revertMatch', () => {
     const mockMatch = {
       id: 'match-123',
       status: 'finished',
+      tournament_id: 'tournament-123',
+      next_match_id: null,
+      winner_source_match_a: null,
+      winner_source_match_b: null,
     };
 
     mockSingle.mockResolvedValueOnce({

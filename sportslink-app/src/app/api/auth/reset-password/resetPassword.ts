@@ -1,9 +1,18 @@
+import { checkRateLimit } from '@/lib/rateLimit';
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 
 export async function resetPassword(request: Request) {
     try {
+        const { allowed, retryAfter } = checkRateLimit(request, 'reset-password');
+        if (!allowed) {
+            return NextResponse.json(
+                { error: 'リセット試行が多すぎます。しばらく経ってからお試しください。', code: 'E-RATE-001' },
+                { status: 429, headers: retryAfter ? { 'Retry-After': String(retryAfter) } : undefined }
+            );
+        }
+
         const { password } = await request.json();
 
         if (!password) {
@@ -13,9 +22,9 @@ export async function resetPassword(request: Request) {
             );
         }
 
-        if (password.length < 6) {
+        if (password.length < 8) {
             return NextResponse.json(
-                { error: 'パスワードは6文字以上で入力してください', code: 'E-VER-003' },
+                { error: 'パスワードは8文字以上で入力してください（NIST推奨）', code: 'E-VER-003' },
                 { status: 400 }
             );
         }
@@ -43,6 +52,8 @@ export async function resetPassword(request: Request) {
                 { status: 400 }
             );
         }
+
+        await supabase.auth.signOut({ scope: 'others' });
 
         // Update password hash in users table
         const passwordHash = await bcrypt.hash(password, 10);

@@ -1,12 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { submitContact } from '../submitContact';
 
-// Supabaseクライアントをモック
 const mockGetUser = vi.fn();
 const mockInsert = vi.fn();
 const mockSelect = vi.fn();
 const mockSingle = vi.fn();
 const mockFrom = vi.fn();
+const mockCheckRateLimit = vi.fn().mockReturnValue({ allowed: true });
+
+vi.mock('@/lib/rateLimit', () => ({
+  checkRateLimit: (request: Request, keyPrefix: string) => mockCheckRateLimit(request, keyPrefix),
+}));
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
@@ -30,6 +34,28 @@ describe('submitContact', () => {
     mockFrom.mockReturnValue({
       insert: vi.fn().mockReturnValue(mockInsertChain),
     });
+  });
+
+  it('should return 429 when rate limited', async () => {
+    mockCheckRateLimit.mockReturnValueOnce({ allowed: false, retryAfter: 60 });
+
+    const request = new Request('http://localhost/api/support/contact', {
+      method: 'POST',
+      body: JSON.stringify({
+        category: 'technical',
+        email: 'test@example.com',
+        subject: 'Test Subject',
+        message: 'This is a test message with enough characters',
+      }),
+    });
+
+    const response = await submitContact(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(429);
+    expect(data.error).toContain('送信が多すぎます');
+    expect(data.code).toBe('E-RATE-001');
+    expect(response.headers.get('Retry-After')).toBe('60');
   });
 
   it('should return 400 when category is missing', async () => {

@@ -1,30 +1,42 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createTeam } from '../createTeam';
 
-// Supabaseクライアントをモック
 const mockInsert = vi.fn();
 const mockSelect = vi.fn();
 const mockSingle = vi.fn();
 const mockFrom = vi.fn();
+const mockGetUser = vi.fn().mockResolvedValue({
+  data: { user: { id: 'user-123' } },
+  error: null,
+});
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
+    auth: { getUser: mockGetUser },
     from: mockFrom,
   })),
+}));
+
+vi.mock('@/lib/permissions', () => ({
+  isAdmin: vi.fn().mockResolvedValue(true),
 }));
 
 describe('createTeam', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: 'user-123' } },
+      error: null,
+    });
+
     const mockInsertChain = {
       select: mockSelect,
     };
-    
+
     mockFrom.mockReturnValue({
       insert: mockInsert,
     });
-    
+
     mockInsert.mockReturnValue(mockInsertChain);
     mockSelect.mockReturnValue({
       single: mockSingle,

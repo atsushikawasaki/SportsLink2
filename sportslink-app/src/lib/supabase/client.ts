@@ -1,10 +1,10 @@
 import { createBrowserClient } from '@supabase/ssr';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database.types';
 
-// シングルトンインスタンスをキャッシュ
-let supabaseClient: ReturnType<typeof createBrowserClient<Database>> | null = null;
+let supabaseClient: SupabaseClient<any> | null = null;
 
-export function createClient() {
+export function createClient(): SupabaseClient<any> {
   if (supabaseClient) {
     return supabaseClient;
   }
@@ -12,7 +12,7 @@ export function createClient() {
   supabaseClient = createBrowserClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  ) as SupabaseClient<any>;
 
   return supabaseClient;
 }

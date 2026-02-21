@@ -6,5 +6,5 @@ export async function POST(
     { params }: { params: Promise<{ matchId: string }> }
 ) {
     const { matchId } = await params;
-    return finishMatch(matchId);
+    return finishMatch(matchId, request);
 }

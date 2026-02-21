@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { ArrowLeft, Save, Filter } from 'lucide-react';
 import AppHeader from '@/components/AppHeader';
 import Breadcrumbs from '@/components/Breadcrumbs';
+import { MatchStatusFilter, isValidMatchStatusFilter } from '@/types/match.types';
 
 interface Match {
     id: string;
@@ -84,7 +85,11 @@ export default function AssignmentsPage() {
         }
     };
 
-    const handleAssignmentChange = (matchId: string, field: 'umpire_id' | 'court_number', value: string | number) => {
+    const handleAssignmentChange = (
+        matchId: string,
+        field: 'umpire_id' | 'court_number',
+        value: string | number | undefined
+    ) => {
         setAssignments((prev) => ({
             ...prev,
             [matchId]: {
@@ -96,11 +101,19 @@ export default function AssignmentsPage() {
 
     const handleSave = async () => {
         try {
+            const invalidCourt = Object.values(assignments).some(
+                (data) => data.court_number !== undefined && (data.court_number < 1 || !Number.isInteger(data.court_number))
+            );
+            if (invalidCourt) {
+                alert('コート番号は1以上の正の整数のみ指定できます。');
+                return;
+            }
+            const updates = Object.entries(assignments).map(([matchId, data]) => {
+                const court = data.court_number;
+                const courtNumber = court !== undefined && Number.isInteger(court) && court >= 1 ? court : data.court_number;
+                return { id: matchId, ...data, court_number: courtNumber };
+            });
             setIsSaving(true);
-            const updates = Object.entries(assignments).map(([matchId, data]) => ({
-                id: matchId,
-                ...data,
-            }));
 
             const response = await fetch(`/api/tournaments/${tournamentId}/draw`, {
                 method: 'PUT',
@@ -286,13 +299,21 @@ export default function AssignmentsPage() {
                                         <label className="block text-sm text-slate-300 mb-2">コート番号</label>
                                         <input
                                             type="number"
-                                            value={currentCourt || ''}
+                                            min={1}
+                                            value={currentCourt ?? ''}
                                             onChange={(e) => {
-                                                const value = e.target.value ? parseInt(e.target.value) : undefined;
-                                                handleAssignmentChange(match.id, 'court_number', value || 0);
+                                                const raw = e.target.value;
+                                                if (raw === '') {
+                                                    handleAssignmentChange(match.id, 'court_number', undefined);
+                                                    return;
+                                                }
+                                                const value = parseInt(raw, 10);
+                                                if (!Number.isNaN(value) && value >= 1) {
+                                                    handleAssignmentChange(match.id, 'court_number', value);
+                                                }
                                             }}
                                             className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                                            placeholder="コート番号"
+                                            placeholder="コート番号（正の整数）"
                                         />
                                     </div>
                                     <div>

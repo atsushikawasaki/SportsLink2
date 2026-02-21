@@ -1,3 +1,4 @@
+import { withIdempotency } from '@/lib/idempotency';
 import { getMatches } from './getMatches';
 import { createMatch } from './createMatch';
 
@@ -8,5 +9,5 @@ export async function GET(request: Request) {
 
 // POST /api/matches - 試合作成
 export async function POST(request: Request) {
-    return createMatch(request);
+    return withIdempotency(request, () => createMatch(request));
 }

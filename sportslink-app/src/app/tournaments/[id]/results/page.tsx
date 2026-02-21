@@ -39,7 +39,7 @@ export default function ResultsPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
-    const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'inprogress' | 'finished'>('all');
+    const [statusFilter, setStatusFilter] = useState<MatchStatusFilter>('all');
     const [roundFilter, setRoundFilter] = useState<string>('all');
 
     const fetchData = useCallback(async () => {
@@ -247,7 +247,7 @@ export default function ResultsPage() {
                                 <Download className="w-4 h-4" />
                                 CSVエクスポート
                             </button>
-                            <PDFExportButton tournamentId={tournamentId} />
+                            <PDFExportButton tournamentId={tournamentId} tournamentName={tournament?.name ?? ''} />
                         </div>
                     </div>
                 </div>

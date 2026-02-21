@@ -20,9 +20,9 @@ export async function getTournamentPairs(id: string) {
             );
         }
 
-        const pairIds = [...new Set((entries ?? []).map((e) => e.pair_id).filter(Boolean))] as string[];
+        const pairIds = Array.from(new Set((entries ?? []).map((e) => e.pair_id).filter(Boolean))) as string[];
         const entryByPairId = new Map((entries ?? []).map((e) => [e.pair_id, e]));
-        const teamIds = [...new Set((entries ?? []).map((e) => e.team_id).filter(Boolean))] as string[];
+        const teamIds = Array.from(new Set((entries ?? []).map((e) => e.team_id).filter(Boolean))) as string[];
 
         if (pairIds.length === 0) {
             return NextResponse.json({ data: [] });

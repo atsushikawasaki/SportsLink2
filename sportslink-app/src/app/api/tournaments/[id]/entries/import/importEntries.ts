@@ -64,7 +64,7 @@ export async function importEntries(id: string, request: Request) {
         }
         const hasPermission = await isAdmin(authUser.id) || await isTournamentAdmin(authUser.id, id);
         if (!hasPermission) {
-            return NextResponse.json({ error: 'この操作を実行する権限がありません', code: 'E-RLS-002' }, { status: 403 });
+            return NextResponse.json({ error: 'この操作を実行する権限がありません', code: 'E-AUTH-002' }, { status: 403 });
         }
 
         const formData = await request.formData();
@@ -89,11 +89,16 @@ export async function importEntries(id: string, request: Request) {
         const p2AffIdx = header.findIndex((h) => /選手2.*所属/i.test(h));
         const seedIdx = header.findIndex((h) => /シード/i.test(h));
 
-        if (repTeamIdx === -1 || p1NameIdx === -1 || p1AffIdx === -1) {
+        const missingColumns: string[] = [];
+        if (repTeamIdx === -1) missingColumns.push('代表チーム名');
+        if (p1NameIdx === -1) missingColumns.push('選手1氏名');
+        if (p1AffIdx === -1) missingColumns.push('選手1所属');
+        if (missingColumns.length > 0) {
             return NextResponse.json({
-                error: 'CSVヘッダーが不正です。代表チーム名,地域名,選手1氏名,選手1所属,選手2氏名,選手2所属,シード を用意してください。',
+                error: `CSVヘッダーに必須カラムがありません: ${missingColumns.join('、')}。代表チーム名・選手1氏名・選手1所属の列を用意してください。`,
                 code: 'E-VER-002',
                 header,
+                missingColumns,
             }, { status: 400 });
         }
 
@@ -197,20 +202,29 @@ export async function importEntries(id: string, request: Request) {
             }
         }
 
-        const adminClient = createAdminClient();
-        if (mode === 'replace') {
-            const updatePayload: TournamentEntriesUpdate = { is_active: false };
-            const { error: deactivateError } = await adminClient
-                .from('tournament_entries')
-                .update(updatePayload as never)
-                .eq('tournament_id', id);
-            if (deactivateError) {
-                return NextResponse.json(
-                    { error: `既存エントリーの無効化に失敗しました: ${deactivateError.message}`, code: 'E-DB-002' },
-                    { status: 500 }
-                );
+        const seenKeys = new Set<string>();
+        const duplicateErrors: Array<{ row: number; message: string }> = [];
+        for (const row of dataRows) {
+            const key =
+                isTeamMatch
+                    ? `${row.repTeamName}\t${row.regionName}`
+                    : `${row.repTeamName}\t${row.regionName}\t${row.player1Name}\t${row.player2Name}`;
+            if (seenKeys.has(key)) {
+                duplicateErrors.push({ row: row.rowNumber, message: '同一のエントリーが重複しています' });
+            } else {
+                seenKeys.add(key);
             }
         }
+        if (duplicateErrors.length > 0) {
+            return NextResponse.json({
+                error: 'CSVに重複行があります。同一の代表チーム・選手の組み合わせは1行のみにしてください。',
+                code: 'E-VER-001',
+                validationErrors: duplicateErrors,
+            }, { status: 400 });
+        }
+
+        const adminClient = createAdminClient();
+        const insertedEntryIds: string[] = [];
 
         const teamsMap = new Map<string, string>();
         const getOrCreateTeam = async (name: string): Promise<string> => {
@@ -267,7 +281,9 @@ export async function importEntries(id: string, request: Request) {
                     throw new Error(`チームエントリー作成失敗: ${teamEntryError?.message || '不明'}`);
                 }
                 const key = `${repTeamName}\t${regionName}`;
-                teamEntryIdByKey.set(key, (newTeamEntry as { id: string }).id);
+                const eid = (newTeamEntry as { id: string }).id;
+                teamEntryIdByKey.set(key, eid);
+                insertedEntryIds.push(eid);
             }
             for (const row of dataRows) {
                 const key = `${row.repTeamName}\t${row.regionName}`;
@@ -329,6 +345,7 @@ export async function importEntries(id: string, request: Request) {
                 }
 
                 const entryId = (newEntry as { id: string }).id;
+                insertedEntryIds.push(entryId);
                 const player1Insert: TournamentPlayersInsert = {
                     entry_id: entryId,
                     actual_team_id: actualTeam1Id,
@@ -390,6 +407,23 @@ export async function importEntries(id: string, request: Request) {
                     throw new Error(`エントリー更新失敗 (行${row.rowNumber}): ${updateEntryError.message}`);
                 }
                 importedCount++;
+            }
+        }
+
+        if (mode === 'replace' && insertedEntryIds.length > 0) {
+            const { data: toDeactivate } = await adminClient
+                .from('tournament_entries')
+                .select('id')
+                .eq('tournament_id', id)
+                .eq('is_active', true);
+            const idsToDeactivate = (toDeactivate ?? [])
+                .map((r: { id: string }) => r.id)
+                .filter((eid: string) => !insertedEntryIds.includes(eid));
+            for (const eid of idsToDeactivate) {
+                await adminClient
+                    .from('tournament_entries')
+                    .update({ is_active: false } as never)
+                    .eq('id', eid);
             }
         }
 

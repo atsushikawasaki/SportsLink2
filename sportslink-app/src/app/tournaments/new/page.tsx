@@ -31,7 +31,7 @@ export default function NewTournamentPage() {
         handleSubmit,
         formState: { errors },
     } = useForm<TournamentInput>({
-        resolver: zodResolver(tournamentSchema),
+        resolver: zodResolver(tournamentSchema) as any,
         defaultValues: {
             status: 'draft',
             is_public: false,
@@ -91,7 +91,7 @@ export default function NewTournamentPage() {
                     )}
 
                     {/* Form */}
-                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+                    <form onSubmit={handleSubmit(onSubmit as (data: TournamentInput) => void)} className="space-y-6">
                         {/* Name */}
                         <div>
                             <label htmlFor="name" className="block text-sm font-medium text-slate-300 mb-2">

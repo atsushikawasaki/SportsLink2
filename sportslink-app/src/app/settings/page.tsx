@@ -14,16 +14,16 @@ const profileSchema = z.object({
 });
 
 const passwordSchema = z.object({
-    currentPassword: z.string().min(6, '現在のパスワードを入力してください'),
-    newPassword: z.string().min(6, '新しいパスワードは6文字以上で入力してください'),
-    confirmPassword: z.string().min(6, 'パスワード（確認）を入力してください'),
+    currentPassword: z.string().min(1, '現在のパスワードを入力してください'),
+    newPassword: z.string().min(8, '新しいパスワードは8文字以上で入力してください'),
+    confirmPassword: z.string().min(8, 'パスワード（確認）は8文字以上で入力してください'),
 }).refine((data) => data.newPassword === data.confirmPassword, {
     message: 'パスワードが一致しません',
     path: ['confirmPassword'],
 });
 
 const deleteAccountSchema = z.object({
-    password: z.string().min(6, 'パスワードを入力してください'),
+    password: z.string().min(1, 'パスワードを入力してください'),
 });
 
 type ProfileInput = z.infer<typeof profileSchema>;

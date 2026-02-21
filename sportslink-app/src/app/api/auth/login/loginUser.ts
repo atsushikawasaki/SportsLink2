@@ -1,3 +1,4 @@
+import { checkRateLimit } from '@/lib/rateLimit';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { NextResponse } from 'next/server';
@@ -8,6 +9,14 @@ type User = Database['public']['Tables']['users']['Row'];
 
 export async function loginUser(request: Request) {
     try {
+        const { allowed, retryAfter } = checkRateLimit(request, 'login');
+        if (!allowed) {
+            return NextResponse.json(
+                { error: 'ログイン試行が多すぎます。しばらく経ってからお試しください。', code: 'E-RATE-001' },
+                { status: 429, headers: retryAfter ? { 'Retry-After': String(retryAfter) } : undefined }
+            );
+        }
+
         const { email, password } = await request.json();
 
         if (!email || !password) {
@@ -17,13 +26,8 @@ export async function loginUser(request: Request) {
             );
         }
 
-        // デバッグ用ログ（開発環境のみ）
         if (process.env.NODE_ENV === 'development') {
-            console.log('Login attempt:', {
-                email: email,
-                hasPassword: !!password,
-                passwordLength: password?.length,
-            });
+            console.log('Login attempt:', { email: email, hasPassword: !!password });
         }
 
         const supabase = await createClient();

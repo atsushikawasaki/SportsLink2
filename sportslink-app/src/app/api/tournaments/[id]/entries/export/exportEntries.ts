@@ -23,7 +23,7 @@ export async function exportEntries(id: string) {
 
         const hasPermission = await isAdmin(authUser.id) || await isTournamentAdmin(authUser.id, id);
         if (!hasPermission) {
-            return NextResponse.json({ error: 'この操作を実行する権限がありません', code: 'E-RLS-002' }, { status: 403 });
+            return NextResponse.json({ error: 'この操作を実行する権限がありません', code: 'E-AUTH-002' }, { status: 403 });
         }
 
         const { data: tournament, error: tournamentError } = await supabase
@@ -50,7 +50,6 @@ export async function exportEntries(id: string) {
             `)
             .eq('tournament_id', id)
             .eq('is_active', true)
-            .in('entry_type', ['doubles', 'singles'])
             .order('seed_rank', { ascending: true, nullsFirst: true })
             .order('created_at', { ascending: true });
 
@@ -77,18 +76,11 @@ export async function exportEntries(id: string) {
             .map((e) => e.pair_id)
             .filter((pid): pid is string => pid != null);
 
-        if (pairIds.length === 0) {
-            return new NextResponse(bom + csvHeader, {
-                headers: {
-                    'Content-Type': 'text/csv; charset=utf-8',
-                    'Content-Disposition': `attachment; filename="tournament-${id}-entries.csv"`,
-                },
-            });
-        }
-
-        const { data: pairs, error: pairsError } = await supabase
-            .from('tournament_pairs')
-            .select(`
+        const { data: pairs, error: pairsError } =
+            pairIds.length > 0
+                ? await supabase
+                    .from('tournament_pairs')
+                    .select(`
                 id,
                 entry_id,
                 player_1_id,
@@ -104,57 +96,44 @@ export async function exportEntries(id: string) {
                     actual_team_id
                 )
             `)
-            .in('id', pairIds);
-
-        if (pairsError || !pairs?.length) {
-            const rows = entries.map((e) => {
-                const team = e.teams as { name?: string } | null;
-                return [
-                    escapeCsvValue(team?.name ?? ''),
-                    escapeCsvValue((e as { region_name?: string | null }).region_name ?? ''),
-                    '',
-                    '',
-                    '',
-                    '',
-                    escapeCsvValue((e as { seed_rank?: number | null }).seed_rank ?? ''),
-                ].join(',');
-            });
-            return new NextResponse(bom + csvHeader + rows.join('\n') + '\n', {
-                headers: {
-                    'Content-Type': 'text/csv; charset=utf-8',
-                    'Content-Disposition': `attachment; filename="tournament-${id}-entries.csv"`,
-                },
-            });
-        }
+                    .in('id', pairIds)
+                : { data: null, error: null };
 
         const teamIds = new Set<string>();
-        pairs.forEach((p) => {
-            const p1 = p.player_1 as { actual_team_id?: string } | null;
-            const p2 = p.player_2 as { actual_team_id?: string } | null;
+        (pairs ?? []).forEach((p: Record<string, unknown>) => {
+            const p1 = Array.isArray(p.player_1) ? (p.player_1[0] as { actual_team_id?: string } | undefined) : (p.player_1 as { actual_team_id?: string } | null | undefined);
+            const p2 = Array.isArray(p.player_2) ? (p.player_2[0] as { actual_team_id?: string } | undefined) : (p.player_2 as { actual_team_id?: string } | null | undefined);
             if (p1?.actual_team_id) teamIds.add(p1.actual_team_id);
             if (p2?.actual_team_id) teamIds.add(p2.actual_team_id);
         });
 
-        const { data: teams } = await supabase
-            .from('teams')
-            .select('id, name')
-            .in('id', Array.from(teamIds));
+        const { data: teams } =
+            teamIds.size > 0
+                ? await supabase.from('teams').select('id, name').in('id', Array.from(teamIds))
+                : { data: [] };
 
-        const teamsById = new Map((teams || []).map((t) => [t.id, t.name]));
+        const teamsById = new Map((teams || []).map((t: { id: string; name: string }) => [t.id, t.name]));
 
-        const pairMap = new Map(pairs.map((p) => [p.id, p]));
+        const pairMap = new Map((pairs ?? []).map((p: { id: string }) => [p.id, p]));
         const csvRows: string[] = [];
 
         for (const entry of entries) {
-            if (!entry.pair_id) continue;
-            const pair = pairMap.get(entry.pair_id) as typeof pairs[0] | undefined;
             const team = entry.teams as { name?: string } | null;
             const repTeamName = team?.name ?? '';
             const regionName = (entry as { region_name?: string | null }).region_name ?? '';
             const seedRank = (entry as { seed_rank?: number | null }).seed_rank ?? '';
 
+            if (!entry.pair_id) {
+                csvRows.push(
+                    [escapeCsvValue(repTeamName), escapeCsvValue(regionName), '', '', '', '', escapeCsvValue(seedRank)].join(',')
+                );
+                continue;
+            }
+            const pair = pairMap.get(entry.pair_id) as { id: string; player_1?: unknown; player_2?: unknown } | undefined;
             if (!pair) {
-                csvRows.push([repTeamName, regionName, '', '', '', '', escapeCsvValue(seedRank)].map(escapeCsvValue).join(','));
+                csvRows.push(
+                    [escapeCsvValue(repTeamName), escapeCsvValue(regionName), '', '', '', '', escapeCsvValue(seedRank)].join(',')
+                );
                 continue;
             }
 

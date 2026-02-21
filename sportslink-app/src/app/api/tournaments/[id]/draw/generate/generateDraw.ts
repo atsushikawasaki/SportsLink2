@@ -85,7 +85,7 @@ function getFourCornerIndices(N: number): number[] {
     const c = Math.floor(N / 4) - 1; // 1-based N/4 → index
     const d = Math.floor((3 * N) / 4); // 1-based 3N/4 → index (3N/4 番目 = index 3N/4 - 1 の次のイメージで 3N/4 付近)
     const corners = [a, b, Math.min(c, N - 1), Math.min(d, N - 1)];
-    return [...new Set(corners)].sort((x, y) => x - y);
+    return Array.from(new Set(corners)).sort((x, y) => x - y);
 }
 
 /**
@@ -127,7 +127,7 @@ export async function generateDraw(id: string, request?: Request) {
         }
         const hasPermission = await isAdmin(authUser.id) || await isTournamentAdmin(authUser.id, id);
         if (!hasPermission) {
-            return NextResponse.json({ error: 'この操作を実行する権限がありません', code: 'E-RLS-002' }, { status: 403 });
+            return NextResponse.json({ error: 'この操作を実行する権限がありません', code: 'E-AUTH-002' }, { status: 403 });
         }
 
         let umpireInitial: UmpireInitial = 'me';
@@ -208,6 +208,12 @@ export async function generateDraw(id: string, request?: Request) {
                 { status: 400 }
             );
         }
+        if (entriesForBracket.length < 2) {
+            return NextResponse.json(
+                { error: 'ドロー生成には2組以上のエントリーが必要です。1組のみの場合は対戦相手がいません。', code: 'E-VER-003' },
+                { status: 400 }
+            );
+        }
 
         // 既存のフェーズと試合を削除（必ず実行して重複を防ぐ）
         const { data: existingPhases } = await adminClient
@@ -217,11 +223,54 @@ export async function generateDraw(id: string, request?: Request) {
 
         const phaseIds = (existingPhases ?? []).map((p: { id: string }) => p.id);
         if (phaseIds.length > 0) {
-            // match_slots が matches を match_id / source_match_id で参照するため、先に match_slots を削除
             const { data: existingMatches } = await adminClient
                 .from('matches')
-                .select('id')
+                .select('id, status')
                 .in('phase_id', phaseIds);
+            const inProgressOrFinished = (existingMatches ?? []).filter(
+                (m: { status: string }) => m.status === 'inprogress' || m.status === 'finished'
+            );
+            const hasInProgress = inProgressOrFinished.some((m: { status: string }) => m.status === 'inprogress');
+            if (hasInProgress) {
+                return NextResponse.json(
+                    {
+                        error: '試合開始または終了済みの試合があるため、ドローを再生成できません。微修正はスロット編集をご利用ください。',
+                        code: 'E-VER-003',
+                    },
+                    { status: 400 }
+                );
+            }
+            const finishedMatchIds = inProgressOrFinished
+                .filter((m: { status: string }) => m.status === 'finished')
+                .map((m: { id: string }) => m.id);
+            let hasRealFinished = false;
+            if (finishedMatchIds.length > 0) {
+                const { data: scores } = await adminClient
+                    .from('match_scores')
+                    .select('match_id, winning_reason')
+                    .in('match_id', finishedMatchIds);
+                const matchIdToReasons = (scores ?? []).reduce<Record<string, string[]>>((acc, s) => {
+                    const mid = (s as { match_id: string; winning_reason: string }).match_id;
+                    const reason = (s as { match_id: string; winning_reason: string }).winning_reason;
+                    if (!acc[mid]) acc[mid] = [];
+                    acc[mid].push(reason);
+                    return acc;
+                }, {});
+                hasRealFinished = finishedMatchIds.some((matchId) => {
+                    const reasons = matchIdToReasons[matchId] ?? [];
+                    const isBye = reasons.length === 1 && reasons[0] === 'DEFAULT';
+                    return !isBye;
+                });
+            }
+            if (hasRealFinished) {
+                return NextResponse.json(
+                    {
+                        error: '試合開始または終了済みの試合があるため、ドローを再生成できません。微修正はスロット編集をご利用ください。',
+                        code: 'E-VER-003',
+                    },
+                    { status: 400 }
+                );
+            }
             const matchIds = (existingMatches ?? []).map((m: { id: string }) => m.id);
             if (matchIds.length > 0) {
                 const { error: slotsByMatchError } = await adminClient
@@ -544,12 +593,19 @@ export async function generateDraw(id: string, request?: Request) {
             }
         }
 
-        // BYE試合の勝者を次ラウンドの match_pairs に反映（足長）
         for (const { matchId, winnerId } of byeMatchIds) {
             try {
                 await propagateWinnerToNextMatch(matchId, winnerId);
             } catch (err) {
-                console.error('propagateWinnerToNextMatch error for BYE:', err);
+                const message = err instanceof Error ? err.message : String(err);
+                return NextResponse.json(
+                    {
+                        error: 'BYE試合の勝者を次ラウンドに反映できませんでした',
+                        code: 'E-DB-001',
+                        details: message,
+                    },
+                    { status: 500 }
+                );
             }
         }
 

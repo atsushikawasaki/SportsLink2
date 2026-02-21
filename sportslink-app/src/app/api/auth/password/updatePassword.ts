@@ -13,9 +13,9 @@ export async function updatePassword(request: Request) {
             );
         }
 
-        if (newPassword.length < 6) {
+        if (newPassword.length < 8) {
             return NextResponse.json(
-                { error: '新しいパスワードは6文字以上で入力してください', code: 'E-VER-003' },
+                { error: '新しいパスワードは8文字以上で入力してください（NIST推奨）', code: 'E-VER-003' },
                 { status: 400 }
             );
         }

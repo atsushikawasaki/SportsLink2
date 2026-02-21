@@ -68,6 +68,7 @@ export default function EntriesPage() {
     const [teamEntryRegion, setTeamEntryRegion] = useState('');
     const [entrySubmitLoading, setEntrySubmitLoading] = useState(false);
     const [entrySubmitError, setEntrySubmitError] = useState<string | null>(null);
+    const [csvImportMode, setCsvImportMode] = useState<'append' | 'update' | 'replace'>('append');
 
     const filteredEntries = useMemo(() => {
         if (!searchQuery.trim()) return entries;
@@ -418,10 +419,20 @@ export default function EntriesPage() {
                             </button>
                         </>
                     )}
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-slate-300 text-sm">CSVインポート:</span>
+                        <select
+                            value={csvImportMode}
+                            onChange={(e) => setCsvImportMode(e.target.value as 'append' | 'update' | 'replace')}
+                            className="rounded-lg border border-slate-600 bg-slate-800 text-slate-200 px-3 py-2 text-sm"
+                        >
+                            <option value="append">追加（既存に足す）</option>
+                            <option value="update">更新（同一キーを上書き）</option>
+                            <option value="replace">置換（既存を無効化して差し替え）</option>
+                        </select>
                         <label className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors cursor-pointer">
                             <Upload className="w-4 h-4" />
-                            CSVインポート
+                            CSV選択
                             <input
                                 type="file"
                                 accept=".csv"

@@ -1,10 +1,17 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
-// GET /api/tournaments/:id - 大会詳細取得
+// GET /api/tournaments/:id - 大会詳細取得（認証必須）
 export async function getTournament(id: string) {
     try {
         const supabase = await createClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            return NextResponse.json(
+                { error: '認証が必要です', code: 'E-AUTH-001' },
+                { status: 401 }
+            );
+        }
 
         const { data, error } = await supabase
             .from('tournaments')

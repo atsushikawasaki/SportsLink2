@@ -1,11 +1,30 @@
+import { isAdmin, isTournamentAdmin } from '@/lib/permissions';
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
-// PUT /api/tournaments/:id/pairs/:pairId - ペア更新（entry_id 経由で大会所属を検証）
+// PUT /api/tournaments/:id/pairs/:pairId - ペア更新（大会管理者または管理者）
 export async function updateTournamentPair(id: string, pairId: string, request: Request) {
     try {
         const body = await request.json();
         const supabase = await createClient();
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+        if (authError || !authUser) {
+            return NextResponse.json(
+                { error: '認証が必要です', code: 'E-AUTH-001' },
+                { status: 401 }
+            );
+        }
+
+        const [tournamentAdmin, admin] = await Promise.all([
+            isTournamentAdmin(authUser.id, id),
+            isAdmin(authUser.id),
+        ]);
+        if (!tournamentAdmin && !admin) {
+            return NextResponse.json(
+                { error: 'この大会のペアを更新する権限がありません', code: 'E-AUTH-002' },
+                { status: 403 }
+            );
+        }
 
         if (body.player_1_id && body.player_2_id && body.player_1_id === body.player_2_id) {
             return NextResponse.json(

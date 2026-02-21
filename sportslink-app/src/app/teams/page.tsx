@@ -10,6 +10,7 @@ import AppHeader from '@/components/AppHeader';
 interface Team {
     id: string;
     name: string;
+    description?: string | null;
     team_manager_user_id: string | null;
     created_at: string;
     tournament_players?: Array<{

@@ -19,7 +19,7 @@ export async function getTournamentTeams(id: string) {
             );
         }
 
-        const teamIds = [...new Set((entryTeamIds || []).map((r) => r.team_id).filter(Boolean))] as string[];
+        const teamIds = Array.from(new Set((entryTeamIds || []).map((r) => r.team_id).filter(Boolean))) as string[];
         if (teamIds.length === 0) {
             return NextResponse.json([]);
         }

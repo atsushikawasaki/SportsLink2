@@ -1,3 +1,4 @@
+import { withIdempotency } from '@/lib/idempotency';
 import { getTournamentEntries } from './getTournamentEntries';
 import { createTournamentEntry } from './createTournamentEntry';
 
@@ -16,5 +17,5 @@ export async function POST(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const { id } = await params;
-    return createTournamentEntry(id, request);
+    return withIdempotency(request, () => createTournamentEntry(id, request));
 }

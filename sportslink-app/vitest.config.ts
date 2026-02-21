@@ -8,7 +8,7 @@ config({ path: '.env.local' });
 config({ path: '.env.test' });
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react() as any],
   test: {
     globals: true,
     environment: 'jsdom',

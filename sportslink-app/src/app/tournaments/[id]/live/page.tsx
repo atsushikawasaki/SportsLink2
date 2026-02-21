@@ -84,7 +84,7 @@ export default function LivePage() {
                 },
                 (payload) => {
                     // 試合ステータス変更時に更新
-                    if (payload.new.status === 'inprogress' || payload.new.status === 'finished') {
+                    if ((payload.new as { status?: string }).status === 'inprogress' || (payload.new as { status?: string }).status === 'finished') {
                         fetchData();
                     }
                 }

@@ -1,7 +1,9 @@
+import { isAdmin, isTournamentAdmin, isUmpire } from '@/lib/permissions';
+import { updateMatchScoresFromPoints } from '@/lib/scoring/aggregateMatchScore';
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
-// POST /api/scoring/undo - Undo操作
+// POST /api/scoring/undo - Undo操作（審判または大会管理者または管理者）
 export async function undoPoint(request: Request) {
     try {
         const body = await request.json();
@@ -15,6 +17,37 @@ export async function undoPoint(request: Request) {
         }
 
         const supabase = await createClient();
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+        if (authError || !authUser) {
+            return NextResponse.json(
+                { error: '認証が必要です', code: 'E-AUTH-001' },
+                { status: 401 }
+            );
+        }
+
+        const { data: matchMeta, error: matchError } = await supabase
+            .from('matches')
+            .select('id, tournament_id')
+            .eq('id', match_id)
+            .single();
+        if (matchError || !matchMeta) {
+            return NextResponse.json(
+                { error: '試合が見つかりません', code: 'E-NOT-FOUND' },
+                { status: 404 }
+            );
+        }
+        const tournamentId = matchMeta.tournament_id as string;
+        const [umpire, tournamentAdmin, admin] = await Promise.all([
+            isUmpire(authUser.id, tournamentId, match_id),
+            isTournamentAdmin(authUser.id, tournamentId),
+            isAdmin(authUser.id),
+        ]);
+        if (!umpire && !tournamentAdmin && !admin) {
+            return NextResponse.json(
+                { error: 'この試合のポイントを取り消す権限がありません', code: 'E-AUTH-002' },
+                { status: 403 }
+            );
+        }
 
         // Get the latest non-undone point
         const { data: latestPoint, error: fetchError } = await supabase
@@ -46,21 +79,26 @@ export async function undoPoint(request: Request) {
             );
         }
 
-        // Increment version
-        const { data: match } = await supabase
+        const scores = await updateMatchScoresFromPoints(supabase, match_id);
+
+        const { data: matchRow } = await supabase
             .from('matches')
             .select('version')
             .eq('id', match_id)
             .single();
 
-        if (match) {
+        if (matchRow && typeof matchRow.version === 'number') {
             await supabase
                 .from('matches')
-                .update({ version: match.version + 1 })
+                .update({ version: matchRow.version + 1 })
                 .eq('id', match_id);
         }
 
-        return NextResponse.json({ message: 'ポイントを取り消しました', undonePoint: latestPoint });
+        return NextResponse.json({
+            message: 'ポイントを取り消しました',
+            undonePoint: latestPoint,
+            match_scores: { game_count_a: scores.game_count_a, game_count_b: scores.game_count_b },
+        });
     } catch (error) {
         console.error('Undo error:', error);
         return NextResponse.json(

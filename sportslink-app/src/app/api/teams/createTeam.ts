@@ -1,7 +1,8 @@
+import { isAdmin } from '@/lib/permissions';
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
-// POST /api/teams - チーム作成
+// POST /api/teams - チーム作成（認証必須、team_manager は自分または管理者のみ指定可）
 export async function createTeam(request: Request) {
     try {
         const body = await request.json();
@@ -15,12 +16,33 @@ export async function createTeam(request: Request) {
         }
 
         const supabase = await createClient();
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+        if (authError || !authUser) {
+            return NextResponse.json(
+                { error: '認証が必要です', code: 'E-AUTH-001' },
+                { status: 401 }
+            );
+        }
+
+        let managerId: string | null = team_manager_user_id ?? null;
+        if (managerId && managerId !== authUser.id) {
+            const admin = await isAdmin(authUser.id);
+            if (!admin) {
+                return NextResponse.json(
+                    { error: 'チーム管理者には自分以外を指定できません', code: 'E-VER-003' },
+                    { status: 403 }
+                );
+            }
+        }
+        if (!managerId) {
+            managerId = authUser.id;
+        }
 
         const { data, error } = await supabase
             .from('teams')
             .insert({
                 name,
-                team_manager_user_id: team_manager_user_id ?? null,
+                team_manager_user_id: managerId,
             })
             .select()
             .single();

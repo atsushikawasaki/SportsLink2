@@ -1,10 +1,29 @@
+import { isAdmin, isTournamentAdmin } from '@/lib/permissions';
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
-// DELETE /api/tournaments/:id/pairs/:pairId - ペア削除（entry_id 経由で大会所属を検証）
+// DELETE /api/tournaments/:id/pairs/:pairId - ペア削除（大会管理者または管理者）
 export async function deleteTournamentPair(id: string, pairId: string) {
     try {
         const supabase = await createClient();
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+        if (authError || !authUser) {
+            return NextResponse.json(
+                { error: '認証が必要です', code: 'E-AUTH-001' },
+                { status: 401 }
+            );
+        }
+
+        const [tournamentAdmin, admin] = await Promise.all([
+            isTournamentAdmin(authUser.id, id),
+            isAdmin(authUser.id),
+        ]);
+        if (!tournamentAdmin && !admin) {
+            return NextResponse.json(
+                { error: 'この大会のペアを削除する権限がありません', code: 'E-AUTH-002' },
+                { status: 403 }
+            );
+        }
 
         // ペアが指定大会に属するか entry_id → tournament_entries 経由で検証
         const { data: pair, error: pairError } = await supabase

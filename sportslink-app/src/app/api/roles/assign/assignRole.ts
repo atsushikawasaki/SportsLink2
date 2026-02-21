@@ -1,10 +1,27 @@
+import { isAdmin } from '@/lib/permissions';
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { RoleType } from '@/lib/permissions';
 
-// POST /api/roles/assign - 権限付与
+// POST /api/roles/assign - 権限付与（admin のみ）
 export async function assignRole(request: Request) {
     try {
+        const supabase = await createClient();
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+        if (authError || !authUser) {
+            return NextResponse.json(
+                { error: '認証が必要です', code: 'E-AUTH-001' },
+                { status: 401 }
+            );
+        }
+        const hasAdmin = await isAdmin(authUser.id);
+        if (!hasAdmin) {
+            return NextResponse.json(
+                { error: 'この操作には管理者権限が必要です', code: 'E-AUTH-002' },
+                { status: 403 }
+            );
+        }
+
         const body = await request.json();
         const { user_id, role, tournament_id, team_id, match_id } = body;
 
@@ -62,8 +79,6 @@ export async function assignRole(request: Request) {
                 );
             }
         }
-
-        const supabase = await createClient();
 
         // 既存の権限を確認
         let existingQuery = supabase

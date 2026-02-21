@@ -29,7 +29,7 @@ export async function getUsers(request: Request) {
 
         if (!hasAdminPermission) {
             return NextResponse.json(
-                { error: '権限がありません', code: 'E-RLS-002' },
+                { error: '権限がありません', code: 'E-AUTH-002' },
                 { status: 403 }
             );
         }

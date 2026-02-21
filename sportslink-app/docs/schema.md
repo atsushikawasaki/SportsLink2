@@ -52,11 +52,26 @@ CREATE TABLE public.match_scores (
   CONSTRAINT match_scores_pkey PRIMARY KEY (match_id),
   CONSTRAINT match_scores_match_id_fkey FOREIGN KEY (match_id) REFERENCES public.matches(id)
 );
+CREATE TABLE public.match_slots (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  match_id uuid NOT NULL,
+  slot_number smallint NOT NULL CHECK (slot_number = ANY (ARRAY[1, 2])),
+  source_type text NOT NULL CHECK (source_type = ANY (ARRAY['entry'::text, 'winner'::text, 'loser'::text, 'bye'::text])),
+  seed_position smallint,
+  entry_id uuid,
+  source_match_id uuid,
+  placeholder_label text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT match_slots_pkey PRIMARY KEY (id),
+  CONSTRAINT match_slots_match_id_fkey FOREIGN KEY (match_id) REFERENCES public.matches(id),
+  CONSTRAINT match_slots_entry_id_fkey FOREIGN KEY (entry_id) REFERENCES public.tournament_entries(id),
+  CONSTRAINT match_slots_source_match_id_fkey FOREIGN KEY (source_match_id) REFERENCES public.matches(id)
+);
 CREATE TABLE public.matches (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   tournament_id uuid NOT NULL,
   round_name text NOT NULL,
-  umpire_id uuid NOT NULL,
+  umpire_id uuid,
   court_number integer,
   status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'inprogress'::text, 'paused'::text, 'finished'::text])),
   version integer NOT NULL DEFAULT 1,
@@ -110,46 +125,43 @@ CREATE TABLE public.points (
 );
 CREATE TABLE public.teams (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  tournament_id uuid NOT NULL,
   name text NOT NULL,
   team_manager_user_id uuid,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT teams_pkey PRIMARY KEY (id),
-  CONSTRAINT teams_tournament_id_fkey FOREIGN KEY (tournament_id) REFERENCES public.tournaments(id),
   CONSTRAINT teams_team_manager_user_id_fkey FOREIGN KEY (team_manager_user_id) REFERENCES public.users(id)
 );
 CREATE TABLE public.tournament_entries (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   tournament_id uuid NOT NULL,
-  entry_type text NOT NULL CHECK (entry_type = ANY (ARRAY['team'::text, 'pair'::text])),
+  entry_type text NOT NULL CHECK (entry_type = ANY (ARRAY['team'::text, 'doubles'::text, 'singles'::text])),
   team_id uuid,
   pair_id uuid,
   seed_rank smallint,
   performance_score integer,
   team_order smallint,
-  affiliation_key text,
   is_active boolean NOT NULL DEFAULT true,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   is_checked_in boolean DEFAULT false,
   day_token character varying,
   last_checked_in_at timestamp without time zone,
+  region_name text,
+  custom_display_name text,
   CONSTRAINT tournament_entries_pkey PRIMARY KEY (id),
   CONSTRAINT tournament_entries_tournament_id_fkey FOREIGN KEY (tournament_id) REFERENCES public.tournaments(id),
   CONSTRAINT tournament_entries_team_id_fkey FOREIGN KEY (team_id) REFERENCES public.teams(id)
 );
 CREATE TABLE public.tournament_pairs (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  tournament_id uuid NOT NULL,
-  team_id uuid,
   pair_number integer NOT NULL,
   player_1_id uuid NOT NULL,
   player_2_id uuid,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
+  entry_id uuid,
   CONSTRAINT tournament_pairs_pkey PRIMARY KEY (id),
-  CONSTRAINT tournament_pairs_tournament_id_fkey FOREIGN KEY (tournament_id) REFERENCES public.tournaments(id),
-  CONSTRAINT tournament_pairs_team_id_fkey FOREIGN KEY (team_id) REFERENCES public.teams(id),
   CONSTRAINT tournament_pairs_player_1_id_fkey FOREIGN KEY (player_1_id) REFERENCES public.tournament_players(id),
-  CONSTRAINT tournament_pairs_player_2_id_fkey FOREIGN KEY (player_2_id) REFERENCES public.tournament_players(id)
+  CONSTRAINT tournament_pairs_player_2_id_fkey FOREIGN KEY (player_2_id) REFERENCES public.tournament_players(id),
+  CONSTRAINT tournament_pairs_entry_id_fkey FOREIGN KEY (entry_id) REFERENCES public.tournament_entries(id)
 );
 CREATE TABLE public.tournament_phases (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -164,21 +176,15 @@ CREATE TABLE public.tournament_phases (
 );
 CREATE TABLE public.tournament_players (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  tournament_id uuid NOT NULL,
-  team_id uuid NOT NULL,
+  actual_team_id uuid NOT NULL,
   player_name text NOT NULL,
   player_type text CHECK (player_type = ANY (ARRAY['前衛'::text, '後衛'::text, '両方'::text])),
   created_at timestamp with time zone NOT NULL DEFAULT now(),
+  entry_id uuid,
+  sort_order smallint,
   CONSTRAINT tournament_players_pkey PRIMARY KEY (id),
-  CONSTRAINT tournament_players_tournament_id_fkey FOREIGN KEY (tournament_id) REFERENCES public.tournaments(id),
-  CONSTRAINT tournament_players_team_id_fkey FOREIGN KEY (team_id) REFERENCES public.teams(id)
-);
-CREATE TABLE public.tournament_teams (
-  tournament_id uuid NOT NULL,
-  team_id uuid NOT NULL,
-  CONSTRAINT tournament_teams_pkey PRIMARY KEY (tournament_id, team_id),
-  CONSTRAINT tournament_teams_tournament_id_fkey FOREIGN KEY (tournament_id) REFERENCES public.tournaments(id),
-  CONSTRAINT tournament_teams_team_id_fkey FOREIGN KEY (team_id) REFERENCES public.teams(id)
+  CONSTRAINT tournament_players_team_id_fkey FOREIGN KEY (actual_team_id) REFERENCES public.teams(id),
+  CONSTRAINT tournament_players_entry_id_fkey FOREIGN KEY (entry_id) REFERENCES public.tournament_entries(id)
 );
 CREATE TABLE public.tournaments (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

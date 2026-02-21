@@ -28,6 +28,7 @@ export default function Breadcrumbs({ items }: BreadcrumbsProps) {
                         <Link
                             href={item.href}
                             className="hover:text-white transition-colors"
+                            prefetch={false}
                         >
                             {item.label}
                         </Link>

@@ -12,7 +12,6 @@ import { createClient } from '@/lib/supabase/client';
 interface Team {
     id: string;
     name: string;
-    school_name: string;
 }
 
 interface MatchPair {

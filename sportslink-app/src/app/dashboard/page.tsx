@@ -64,14 +64,41 @@ export default function DashboardPage() {
         }
         hasFetched.current = true;
 
+        // AuthLoadingを即座にfalseにしてUIを表示
+        setAuthLoading(false);
+
         const fetchData = async () => {
             try {
                 // 全てのAPIリクエストを並列で実行
                 const promises: Promise<any>[] = [
                     // 大会一覧取得
-                    fetch('/api/tournaments?limit=5').then(res => res.json()).catch(() => ({ data: [] })),
+                    fetch('/api/tournaments?limit=5')
+                        .then(async (res) => {
+                            if (!res.ok) {
+                                const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
+                                console.error('Failed to fetch tournaments:', errorData);
+                                return { data: [], error: errorData.error };
+                            }
+                            return res.json();
+                        })
+                        .catch((err) => {
+                            console.error('Network error fetching tournaments:', err);
+                            return { data: [], error: 'Network error' };
+                        }),
                     // 規約同意チェック
-                    fetch('/api/auth/consent/check').then(res => res.json()).catch(() => ({ needs_reconsent: false })),
+                    fetch('/api/auth/consent/check')
+                        .then(async (res) => {
+                            if (!res.ok) {
+                                const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
+                                console.error('Failed to check consent:', errorData);
+                                return { needs_reconsent: false, error: errorData.error };
+                            }
+                            return res.json();
+                        })
+                        .catch((err) => {
+                            console.error('Network error checking consent:', err);
+                            return { needs_reconsent: false, error: 'Network error' };
+                        }),
                 ];
 
                 // 審判割り当て試合取得（ユーザーIDがある場合のみ）
@@ -79,8 +106,18 @@ export default function DashboardPage() {
                 if (userId) {
                     promises.push(
                         fetch(`/api/matches/umpire/${userId}`)
-                            .then(res => res.json())
-                            .catch(() => ({ data: [] }))
+                            .then(async (res) => {
+                                if (!res.ok) {
+                                    const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
+                                    console.error('Failed to fetch umpire matches:', errorData);
+                                    return { data: [], error: errorData.error };
+                                }
+                                return res.json();
+                            })
+                            .catch((err) => {
+                                console.error('Network error fetching umpire matches:', err);
+                                return { data: [], error: 'Network error' };
+                            })
                     );
                 }
 
@@ -126,7 +163,6 @@ export default function DashboardPage() {
                 console.error('Failed to fetch data:', error);
             } finally {
                 setLoadingState(false);
-                setAuthLoading(false);
             }
         };
 
@@ -137,6 +173,19 @@ export default function DashboardPage() {
     if (!isAuthenticated) {
         return null;
     }
+
+    // スケルトンカードコンポーネント
+    const SkeletonStatCard = () => (
+        <div className="p-6 bg-slate-800/50 rounded-xl border border-slate-700/50 animate-pulse">
+            <div className="flex items-center justify-between">
+                <div>
+                    <div className="h-4 w-24 bg-slate-700 rounded mb-2"></div>
+                    <div className="h-8 w-12 bg-slate-700 rounded"></div>
+                </div>
+                <div className="w-12 h-12 bg-slate-700 rounded-lg"></div>
+            </div>
+        </div>
+    );
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
@@ -154,33 +203,43 @@ export default function DashboardPage() {
 
                 {/* Tournament Summary Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <div className="p-6 bg-gradient-to-br from-blue-500/20 to-cyan-500/20 rounded-xl border border-blue-500/30">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-slate-400 text-sm mb-1">管理する大会数</p>
-                                <p className="text-3xl font-bold text-white">{tournamentStats.managed}</p>
+                    {loading ? (
+                        <>
+                            <SkeletonStatCard />
+                            <SkeletonStatCard />
+                            <SkeletonStatCard />
+                        </>
+                    ) : (
+                        <>
+                            <div className="p-6 bg-gradient-to-br from-blue-500/20 to-cyan-500/20 rounded-xl border border-blue-500/30">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-slate-400 text-sm mb-1">管理する大会数</p>
+                                        <p className="text-3xl font-bold text-white">{tournamentStats.managed}</p>
+                                    </div>
+                                    <Trophy className="w-12 h-12 text-blue-400 opacity-50" />
+                                </div>
                             </div>
-                            <Trophy className="w-12 h-12 text-blue-400 opacity-50" />
-                        </div>
-                    </div>
-                    <div className="p-6 bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-xl border border-green-500/30">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-slate-400 text-sm mb-1">エントリー中の大会数</p>
-                                <p className="text-3xl font-bold text-white">{tournamentStats.entered}</p>
+                            <div className="p-6 bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-xl border border-green-500/30">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-slate-400 text-sm mb-1">エントリー中の大会数</p>
+                                        <p className="text-3xl font-bold text-white">{tournamentStats.entered}</p>
+                                    </div>
+                                    <Calendar className="w-12 h-12 text-green-400 opacity-50" />
+                                </div>
                             </div>
-                            <Calendar className="w-12 h-12 text-green-400 opacity-50" />
-                        </div>
-                    </div>
-                    <div className="p-6 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-xl border border-purple-500/30">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-slate-400 text-sm mb-1">公開されている大会数</p>
-                                <p className="text-3xl font-bold text-white">{tournamentStats.public}</p>
+                            <div className="p-6 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-xl border border-purple-500/30">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-slate-400 text-sm mb-1">公開されている大会数</p>
+                                        <p className="text-3xl font-bold text-white">{tournamentStats.public}</p>
+                                    </div>
+                                    <Award className="w-12 h-12 text-purple-400 opacity-50" />
+                                </div>
                             </div>
-                            <Award className="w-12 h-12 text-purple-400 opacity-50" />
-                        </div>
-                    </div>
+                        </>
+                    )}
                 </div>
 
                 {/* Assigned Matches Section */}
@@ -221,8 +280,8 @@ export default function DashboardPage() {
                                         <div className="flex items-center gap-3">
                                             <span
                                                 className={`px-3 py-1 text-xs rounded ${match.status === 'inprogress'
-                                                        ? 'bg-blue-500/20 text-blue-400'
-                                                        : 'bg-slate-500/20 text-slate-400'
+                                                    ? 'bg-blue-500/20 text-blue-400'
+                                                    : 'bg-slate-500/20 text-slate-400'
                                                     }`}
                                             >
                                                 {match.status === 'inprogress' ? (
@@ -352,10 +411,10 @@ const TournamentCard = memo(({ tournament }: TournamentCardProps) => {
                 </div>
                 <span
                     className={`px-3 py-1 text-xs font-medium rounded-full ${tournament.status === 'published'
-                            ? 'bg-green-500/20 text-green-400'
-                            : tournament.status === 'finished'
-                                ? 'bg-slate-500/20 text-slate-400'
-                                : 'bg-yellow-500/20 text-yellow-400'
+                        ? 'bg-green-500/20 text-green-400'
+                        : tournament.status === 'finished'
+                            ? 'bg-slate-500/20 text-slate-400'
+                            : 'bg-yellow-500/20 text-yellow-400'
                         }`}
                 >
                     {tournament.status === 'published'

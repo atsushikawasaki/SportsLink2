@@ -1,38 +1,42 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { updateTournament } from '../updateTournament';
 
-// Supabaseクライアントをモック
 const mockUpdate = vi.fn();
 const mockEq = vi.fn();
 const mockSelect = vi.fn();
 const mockSingle = vi.fn();
 const mockFrom = vi.fn();
+const mockGetUser = vi.fn().mockResolvedValue({
+  data: { user: { id: 'user-123' } },
+  error: null,
+});
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
+    auth: { getUser: mockGetUser },
     from: mockFrom,
   })),
+}));
+
+vi.mock('@/lib/permissions', () => ({
+  isTournamentAdmin: vi.fn().mockResolvedValue(true),
+  isAdmin: vi.fn().mockResolvedValue(false),
 }));
 
 describe('updateTournament', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    
-    const mockUpdateChain = {
-      eq: mockEq,
+
+    const selectChain = {
+      eq: vi.fn().mockReturnValue({ single: mockSingle }),
     };
-    
     mockFrom.mockReturnValue({
+      select: vi.fn().mockReturnValue(selectChain),
       update: mockUpdate,
     });
-    
-    mockUpdate.mockReturnValue(mockUpdateChain);
-    mockEq.mockReturnValue({
-      select: mockSelect,
-    });
-    mockSelect.mockReturnValue({
-      single: mockSingle,
-    });
+    mockUpdate.mockReturnValue({ eq: mockEq });
+    mockEq.mockReturnValue({ select: mockSelect });
+    mockSelect.mockReturnValue({ single: mockSingle });
   });
 
   it('should update tournament successfully', async () => {
@@ -72,7 +76,11 @@ describe('updateTournament', () => {
       description: 'Updated description',
     };
 
-    mockSingle.mockResolvedValue({
+    mockSingle.mockResolvedValueOnce({
+      data: { id: 'tournament-123', created_by_user_id: 'user-123' },
+      error: null,
+    });
+    mockSingle.mockResolvedValueOnce({
       data: mockTournament,
       error: null,
     });
@@ -91,8 +99,25 @@ describe('updateTournament', () => {
     expect(data.description).toBe('Updated description');
   });
 
+  it('should return 401 when not authenticated', async () => {
+    mockGetUser.mockResolvedValueOnce({ data: { user: null }, error: null });
+    const request = new Request('http://localhost/api/tournaments/tournament-123', {
+      method: 'PUT',
+      body: JSON.stringify({ name: 'Updated' }),
+    });
+    const response = await updateTournament('tournament-123', request);
+    const data = await response.json();
+    expect(response.status).toBe(401);
+    expect(data.error).toContain('認証が必要です');
+    expect(data.code).toBe('E-AUTH-001');
+  });
+
   it('should return 500 on database error', async () => {
-    mockSingle.mockResolvedValue({
+    mockSingle.mockResolvedValueOnce({
+      data: { id: 'tournament-123', created_by_user_id: 'user-123' },
+      error: null,
+    });
+    mockSingle.mockResolvedValueOnce({
       data: null,
       error: { message: 'Database constraint violation' },
     });
@@ -132,17 +157,11 @@ describe('updateTournament', () => {
     expect(data.code).toBe('E-SERVER-001');
   });
 
-  it('should handle empty update body', async () => {
-    const mockTournament = {
-      id: 'tournament-123',
-      name: 'Original Name',
-    };
-
-    mockSingle.mockResolvedValue({
-      data: mockTournament,
+  it('should return 400 when update body is empty after validation', async () => {
+    mockSingle.mockResolvedValueOnce({
+      data: { id: 'tournament-123', created_by_user_id: 'user-123' },
       error: null,
     });
-
     const request = new Request('http://localhost/api/tournaments/tournament-123', {
       method: 'PUT',
       body: JSON.stringify({}),
@@ -151,8 +170,9 @@ describe('updateTournament', () => {
     const response = await updateTournament('tournament-123', request);
     const data = await response.json();
 
-    expect(response.status).toBe(200);
-    expect(data).toBeDefined();
+    expect(response.status).toBe(400);
+    expect(data.error).toContain('更新する項目がありません');
+    expect(data.code).toBe('E-VER-003');
   });
 });
 

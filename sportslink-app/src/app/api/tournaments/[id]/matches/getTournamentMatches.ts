@@ -1,7 +1,7 @@
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { NextResponse } from 'next/server';
 
-// GET /api/tournaments/:id/matches - 大会の試合一覧取得
+// GET /api/tournaments/:id/matches - 大会の試合一覧取得（match_pairs RLS 再帰を避けるため admin 使用）
 export async function getTournamentMatches(id: string, request: Request) {
     try {
         const { searchParams } = new URL(request.url);
@@ -9,7 +9,7 @@ export async function getTournamentMatches(id: string, request: Request) {
         const search = searchParams.get('search');
         const roundFilter = searchParams.get('round');
 
-        const supabase = await createClient();
+        const supabase = createAdminClient();
 
         let query = supabase
             .from('matches')

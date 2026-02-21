@@ -10,9 +10,7 @@ import { ArrowLeft } from 'lucide-react';
 
 const playerSchema = z.object({
     player_name: z.string().min(1, '選手名を入力してください'),
-    player_type: z.enum(['前衛', '後衛', '両方'], {
-        errorMap: () => ({ message: 'ポジションを選択してください' }),
-    }),
+    player_type: z.enum(['前衛', '後衛', '両方'], { message: 'ポジションを選択してください' }),
 });
 
 type PlayerInput = z.infer<typeof playerSchema>;

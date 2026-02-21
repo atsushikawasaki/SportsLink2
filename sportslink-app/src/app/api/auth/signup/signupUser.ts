@@ -22,6 +22,13 @@ export async function signupUser(request: Request) {
             );
         }
 
+        if (password.length < 8) {
+            return NextResponse.json(
+                { error: 'パスワードは8文字以上で入力してください（NIST推奨）', code: 'E-VER-003' },
+                { status: 400 }
+            );
+        }
+
         const supabase = await createClient();
 
         // Create auth user
@@ -50,18 +57,27 @@ export async function signupUser(request: Request) {
             );
         }
 
-        // Wait a moment for trigger to complete
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        // Get user profile (created by trigger)
         const adminClient = createAdminClient();
-        const { data: userProfile, error: profileError } = await adminClient
-            .from('users')
-            .select('*')
-            .eq('id', authData.user.id)
-            .single();
+        const maxAttempts = 5;
+        const baseDelayMs = 50;
+        let userProfile: { id: string } | null = null;
+        let profileError: { message: string } | null = null;
 
-        if (profileError) {
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            if (attempt > 0) {
+                await new Promise((r) => setTimeout(r, baseDelayMs * attempt));
+            }
+            const result = await adminClient
+                .from('users')
+                .select('*')
+                .eq('id', authData.user.id)
+                .single();
+            userProfile = result.data;
+            profileError = result.error;
+            if (userProfile) break;
+        }
+
+        if (profileError || !userProfile) {
             console.error('Profile creation error (trigger may have failed):', profileError);
             // Try to create manually as fallback
             const passwordHash = await bcrypt.hash(password, 10);

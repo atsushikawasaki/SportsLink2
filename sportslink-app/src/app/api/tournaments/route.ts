@@ -1,3 +1,4 @@
+import { withIdempotency } from '@/lib/idempotency';
 import { getTournaments } from './getTournaments';
 import { createTournament } from './createTournament';
 
@@ -8,5 +9,5 @@ export async function GET(request: Request) {
 
 // POST /api/tournaments - 大会作成
 export async function POST(request: Request) {
-    return createTournament(request);
+    return withIdempotency(request, () => createTournament(request));
 }

@@ -1,7 +1,8 @@
+import { isAdmin, isTournamentAdmin } from '@/lib/permissions';
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
-// PUT /api/tournaments/:id/draw - ドロー更新
+// PUT /api/tournaments/:id/draw - ドロー更新（大会管理者または管理者）
 export async function updateDraw(id: string, request: Request) {
     try {
         const body = await request.json();
@@ -14,7 +15,37 @@ export async function updateDraw(id: string, request: Request) {
             );
         }
 
+        const invalidCourt = matches.some(
+            (m: { court_number?: number | null }) =>
+                m.court_number != null &&
+                (!Number.isInteger(m.court_number) || (m.court_number as number) < 1)
+        );
+        if (invalidCourt) {
+            return NextResponse.json(
+                { error: 'コート番号は1以上の正の整数のみ指定できます', code: 'E-VER-003' },
+                { status: 400 }
+            );
+        }
+
         const supabase = await createClient();
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+        if (authError || !authUser) {
+            return NextResponse.json(
+                { error: '認証が必要です', code: 'E-AUTH-001' },
+                { status: 401 }
+            );
+        }
+
+        const [tournamentAdmin, admin] = await Promise.all([
+            isTournamentAdmin(authUser.id, id),
+            isAdmin(authUser.id),
+        ]);
+        if (!tournamentAdmin && !admin) {
+            return NextResponse.json(
+                { error: 'このドローを編集する権限がありません', code: 'E-AUTH-002' },
+                { status: 403 }
+            );
+        }
 
         // 各試合を更新
         const updates = matches.map((match: any) =>

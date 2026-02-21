@@ -1,8 +1,10 @@
+import { isAdmin, isTournamentAdmin, isUmpire } from '@/lib/permissions';
+import { updateMatchScoresFromPoints } from '@/lib/scoring/aggregateMatchScore';
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 
-// POST /api/scoring/points - ポイント入力
+// POST /api/scoring/points - ポイント入力（審判または大会管理者または管理者）
 export async function addPoint(request: Request) {
     try {
         const body = await request.json();
@@ -16,11 +18,17 @@ export async function addPoint(request: Request) {
         }
 
         const supabase = await createClient();
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+        if (authError || !authUser) {
+            return NextResponse.json(
+                { error: '認証が必要です', code: 'E-AUTH-001' },
+                { status: 401 }
+            );
+        }
 
-        // Check version for optimistic locking
         const { data: match, error: matchError } = await supabase
             .from('matches')
-            .select('version, status')
+            .select('id, version, status, tournament_id')
             .eq('id', match_id)
             .single();
 
@@ -28,6 +36,19 @@ export async function addPoint(request: Request) {
             return NextResponse.json(
                 { error: '試合が見つかりません', code: 'E-NOT-FOUND' },
                 { status: 404 }
+            );
+        }
+
+        const tournamentId = match.tournament_id as string;
+        const [umpire, tournamentAdmin, admin] = await Promise.all([
+            isUmpire(authUser.id, tournamentId, match_id),
+            isTournamentAdmin(authUser.id, tournamentId),
+            isAdmin(authUser.id),
+        ]);
+        if (!umpire && !tournamentAdmin && !admin) {
+            return NextResponse.json(
+                { error: 'この試合のスコアを操作する権限がありません', code: 'E-AUTH-002' },
+                { status: 403 }
             );
         }
 
@@ -66,29 +87,31 @@ export async function addPoint(request: Request) {
             );
         }
 
-        // Increment version
-        await supabase
+        const scores = await updateMatchScoresFromPoints(supabase, match_id);
+
+        const { data: updatedMatch, error: versionError } = await supabase
             .from('matches')
             .update({ version: match.version + 1 })
-            .eq('id', match_id);
-
-        // Get updated match scores
-        const { data: matchScores } = await supabase
-            .from('match_scores')
-            .select('*')
-            .eq('match_id', match_id)
+            .eq('id', match_id)
+            .eq('version', match.version)
+            .select('version')
             .single();
+
+        if (versionError || !updatedMatch) {
+            return NextResponse.json(
+                { error: 'データが競合しています。再同期してください', code: 'E-CONFL-001' },
+                { status: 409 }
+            );
+        }
 
         return NextResponse.json(
             {
                 point,
-                newVersion: match.version + 1,
-                match_scores: matchScores
-                    ? {
-                          game_count_a: matchScores.game_count_a,
-                          game_count_b: matchScores.game_count_b,
-                      }
-                    : null,
+                newVersion: updatedMatch.version,
+                match_scores: {
+                    game_count_a: scores.game_count_a,
+                    game_count_b: scores.game_count_b,
+                },
             },
             { status: 201 }
         );

@@ -44,11 +44,6 @@ export async function checkPermission(
     // This is safe because we're only reading permission data, not modifying it
     const supabase = createAdminClient();
 
-    // Debug logging (development only)
-    if (process.env.NODE_ENV === 'development') {
-        console.log('checkPermission called:', { userId, roleType, scope });
-    }
-
     // First, check if user has admin role (admin has all permissions)
     const { data: adminPermission, error: adminError } = await supabase
         .from('user_permissions')
@@ -62,10 +57,6 @@ export async function checkPermission(
 
     if (adminError && adminError.code !== 'PGRST116') {
         console.error('Error checking admin permission:', adminError);
-    }
-
-    if (process.env.NODE_ENV === 'development') {
-        console.log('Admin permission check:', { adminPermission, adminError });
     }
 
     if (adminPermission) {
@@ -120,10 +111,6 @@ export async function checkPermission(
     if (error && error.code !== 'PGRST116') {
         // PGRST116 is "not found" error, which is expected
         console.error('Error checking permission:', error);
-    }
-
-    if (process.env.NODE_ENV === 'development') {
-        console.log('Permission check result:', { permission, error, query: query.toString() });
     }
 
     if (permission) {

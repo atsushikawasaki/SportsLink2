@@ -1,7 +1,8 @@
+import { isAdmin, isTournamentAdmin } from '@/lib/permissions';
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
-// PUT /api/tournaments/:id/draw/slots - ドロースロット更新
+// PUT /api/tournaments/:id/draw/slots - ドロースロット更新（大会管理者または管理者）
 export async function updateDrawSlots(id: string, request: Request) {
     try {
         const body = await request.json();
@@ -15,8 +16,54 @@ export async function updateDrawSlots(id: string, request: Request) {
         }
 
         const supabase = await createClient();
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+        if (authError || !authUser) {
+            return NextResponse.json(
+                { error: '認証が必要です', code: 'E-AUTH-001' },
+                { status: 401 }
+            );
+        }
 
-        // 各スロットを更新
+        const [tournamentAdmin, admin] = await Promise.all([
+            isTournamentAdmin(authUser.id, id),
+            isAdmin(authUser.id),
+        ]);
+        if (!tournamentAdmin && !admin) {
+            return NextResponse.json(
+                { error: 'このドローのスロットを編集する権限がありません', code: 'E-AUTH-002' },
+                { status: 403 }
+            );
+        }
+
+        const { data: match, error: matchError } = await supabase
+            .from('matches')
+            .select('id, status, tournament_id')
+            .eq('id', match_id)
+            .single();
+
+        if (matchError || !match) {
+            return NextResponse.json(
+                { error: '試合が見つかりません', code: 'E-NOT-FOUND' },
+                { status: 404 }
+            );
+        }
+        if (match.tournament_id !== id) {
+            return NextResponse.json(
+                { error: '試合がこの大会に属していません', code: 'E-VER-003' },
+                { status: 400 }
+            );
+        }
+
+        if (match.status !== 'pending') {
+            return NextResponse.json(
+                {
+                    error: 'スロット編集は試合が未開始（pending）の場合のみ可能です。進行中・終了済みの試合は編集できません。',
+                    code: 'E-VER-003',
+                },
+                { status: 400 }
+            );
+        }
+
         const updates = slots.map((slot: any) => {
             const updateData: any = {
                 source_type: slot.source_type,

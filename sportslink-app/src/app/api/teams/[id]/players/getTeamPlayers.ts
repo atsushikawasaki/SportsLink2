@@ -1,15 +1,14 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
-// GET /api/teams/:id/players - チームの選手一覧取得
+// GET /api/teams/:id/players - チームの選手一覧取得（actual_team_id で紐づく tournament_players）
 export async function getTeamPlayers(id: string) {
     try {
         const supabase = await createClient();
 
-        // チーム情報を取得
         const { data: team, error: teamError } = await supabase
             .from('teams')
-            .select('tournament_id')
+            .select('id, name')
             .eq('id', id)
             .single();
 
@@ -20,12 +19,11 @@ export async function getTeamPlayers(id: string) {
             );
         }
 
-        // 選手一覧を取得
         const { data: players, error: playersError } = await supabase
             .from('tournament_players')
-            .select('*')
-            .eq('team_id', id)
-            .eq('tournament_id', team.tournament_id)
+            .select('id, player_name, player_type, sort_order, entry_id, created_at')
+            .eq('actual_team_id', id)
+            .order('sort_order', { ascending: true, nullsFirst: true })
             .order('created_at', { ascending: true });
 
         if (playersError) {
@@ -36,8 +34,8 @@ export async function getTeamPlayers(id: string) {
         }
 
         return NextResponse.json({
-            team: { id, tournament_id: team.tournament_id },
-            players: players || [],
+            team: { id: team.id, name: team.name },
+            players: players ?? [],
         });
     } catch (error) {
         console.error('Get team players error:', error);

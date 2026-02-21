@@ -11,6 +11,9 @@
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
+    "test:integration": "vitest run src/lib/supabase/__tests__/connection.integration.test.ts",
+    "test:build": "next build",
+    "test:all": "npm run test && npm run test:build",
     "test:fix": "npm run lint -- --fix && npm run test"
   },
   "dependencies": {
@@ -44,6 +47,7 @@
     "@vitejs/plugin-react": "^4.2.1",
     "@vitest/coverage-v8": "^1.0.4",
     "@vitest/ui": "^1.0.4",
+    "dotenv": "^16.6.1",
     "eslint": "^8",
     "eslint-config-next": "14.2.35",
     "jsdom": "^23.0.1",

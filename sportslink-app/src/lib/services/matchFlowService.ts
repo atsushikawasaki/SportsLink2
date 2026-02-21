@@ -128,7 +128,6 @@ export async function determineMatchWinner(matchId: string): Promise<string | nu
 
         return matchPairA?.team_id || matchPairA?.pair_id || null;
     } else if (score.game_count_b > score.game_count_a) {
-        // Get match_pairs to find team_id or pair_id for slot B
         const { data: matchPairB } = await supabase
             .from('match_pairs')
             .select('team_id, pair_id')
@@ -139,7 +138,31 @@ export async function determineMatchWinner(matchId: string): Promise<string | nu
         return matchPairB?.team_id || matchPairB?.pair_id || null;
     }
 
-    return null; // Draw or not finished
+    const { data: slots } = await supabase
+        .from('match_slots')
+        .select('slot_number, source_type, entry_id, source_match_id')
+        .eq('match_id', matchId);
+
+    const nonByeSlot = slots?.find((s) => s.source_type !== 'bye');
+    if (!nonByeSlot || slots?.length !== 2) {
+        return null;
+    }
+
+    if (nonByeSlot.entry_id) {
+        const { data: entry } = await supabase
+            .from('tournament_entries')
+            .select('team_id, pair_id')
+            .eq('id', nonByeSlot.entry_id)
+            .single();
+        return entry?.team_id ?? entry?.pair_id ?? null;
+    }
+
+    if (nonByeSlot.source_match_id) {
+        const winnerId = await determineMatchWinner(nonByeSlot.source_match_id);
+        return winnerId;
+    }
+
+    return null;
 }
 
 /**
@@ -259,9 +282,9 @@ export async function finishParentTeamMatch(parentMatchId: string): Promise<stri
         }
     }
 
-    // Find team with majority wins
     const totalMatches = childMatches.length;
     const majority = Math.ceil(totalMatches / 2);
+    const allFinished = childMatches.every((m) => m.status === 'finished');
 
     let winnerId: string | null = null;
     for (const [teamId, wins] of Object.entries(teamWins)) {
@@ -271,14 +294,15 @@ export async function finishParentTeamMatch(parentMatchId: string): Promise<stri
         }
     }
 
-    if (winnerId) {
-        // Update parent match status and score
+    if (allFinished) {
         await supabase
             .from('matches')
             .update({ status: 'finished' })
             .eq('id', parentMatchId);
 
-        // Create or update match_scores for parent match
+        const entries = Object.entries(teamWins);
+        const winsA = entries[0]?.[1] ?? 0;
+        const winsB = entries[1]?.[1] ?? 0;
         const { data: existingScore } = await supabase
             .from('match_scores')
             .select('match_id')
@@ -291,7 +315,9 @@ export async function finishParentTeamMatch(parentMatchId: string): Promise<stri
                 .update({
                     winner_id: winnerId,
                     ended_at: new Date().toISOString(),
-                    winning_reason: 'NORMAL',
+                    winning_reason: winnerId ? 'NORMAL' : null,
+                    game_count_a: winsA,
+                    game_count_b: winsB,
                 })
                 .eq('match_id', parentMatchId);
         } else {
@@ -299,11 +325,11 @@ export async function finishParentTeamMatch(parentMatchId: string): Promise<stri
                 .from('match_scores')
                 .insert({
                     match_id: parentMatchId,
-                    game_count_a: teamWins[winnerId] || 0,
-                    game_count_b: totalMatches - (teamWins[winnerId] || 0),
+                    game_count_a: winsA,
+                    game_count_b: winsB,
                     winner_id: winnerId,
                     ended_at: new Date().toISOString(),
-                    winning_reason: 'NORMAL',
+                    winning_reason: winnerId ? 'NORMAL' : null,
                 });
         }
     }
@@ -370,7 +396,6 @@ export async function propagateWinnerToNextMatch(
         .eq('pair_number', slotNumber)
         .single();
 
-    // Determine if winner is team or pair
     const { data: team } = await supabase
         .from('teams')
         .select('id')
@@ -379,23 +404,75 @@ export async function propagateWinnerToNextMatch(
 
     const isTeam = !!team;
 
-    if (existingPair) {
-        // Update existing match_pair
-        if (isTeam) {
-            // Get first tournament_pair for the team to get player IDs
-            const { data: tournamentPair } = await supabase
+    let winningSlotPlayer1: string | null = null;
+    let winningSlotPlayer2: string | null = null;
+    const { data: score } = await supabase
+        .from('match_scores')
+        .select('game_count_a, game_count_b')
+        .eq('match_id', matchId)
+        .single();
+    if (score) {
+        const winnerSlot = score.game_count_a > score.game_count_b ? 1 : 2;
+        const { data: winnerMatchPair } = await supabase
+            .from('match_pairs')
+            .select('player_1_id, player_2_id')
+            .eq('match_id', matchId)
+            .eq('pair_number', winnerSlot)
+            .maybeSingle();
+        if (winnerMatchPair) {
+            winningSlotPlayer1 = winnerMatchPair.player_1_id;
+            winningSlotPlayer2 = winnerMatchPair.player_2_id ?? null;
+        }
+    }
+
+    const resolveTournamentPairForTeam = async (): Promise<{ player_1_id: string; player_2_id: string | null } | null> => {
+        const { data: entries } = await supabase
+            .from('tournament_entries')
+            .select('id')
+            .eq('team_id', winnerId)
+            .eq('is_active', true);
+        const entryIds = (entries ?? []).map((e: { id: string }) => e.id);
+        if (entryIds.length === 0) return null;
+
+        if (winningSlotPlayer1) {
+            let q = supabase
                 .from('tournament_pairs')
                 .select('player_1_id, player_2_id')
-                .eq('team_id', winnerId)
+                .in('entry_id', entryIds)
+                .eq('player_1_id', winningSlotPlayer1);
+            if (winningSlotPlayer2 != null) {
+                q = q.eq('player_2_id', winningSlotPlayer2);
+            } else {
+                q = q.is('player_2_id', null);
+            }
+            const { data: tp } = await q.maybeSingle();
+            if (tp) return tp;
+            const { data: first } = await supabase
+                .from('tournament_pairs')
+                .select('player_1_id, player_2_id')
+                .in('entry_id', entryIds)
+                .eq('player_1_id', winningSlotPlayer1)
                 .limit(1)
-                .single();
+                .maybeSingle();
+            if (first) return first;
+        }
+        const { data: fallback } = await supabase
+            .from('tournament_pairs')
+            .select('player_1_id, player_2_id')
+            .in('entry_id', entryIds)
+            .limit(1)
+            .maybeSingle();
+        return fallback;
+    };
 
+    if (existingPair) {
+        if (isTeam) {
+            const tournamentPair = await resolveTournamentPairForTeam();
             const updateData: any = { team_id: winnerId };
             if (tournamentPair) {
                 updateData.player_1_id = tournamentPair.player_1_id;
                 updateData.player_2_id = tournamentPair.player_2_id;
             }
-
             await supabase
                 .from('match_pairs')
                 .update(updateData)
@@ -420,7 +497,6 @@ export async function propagateWinnerToNextMatch(
             }
         }
     } else {
-        // Create new match_pair
         const pairData: any = {
             match_id: match.next_match_id,
             pair_number: slotNumber,
@@ -428,14 +504,7 @@ export async function propagateWinnerToNextMatch(
 
         if (isTeam) {
             pairData.team_id = winnerId;
-            // Get first tournament_pair for the team to get player IDs
-            const { data: tournamentPair } = await supabase
-                .from('tournament_pairs')
-                .select('player_1_id, player_2_id')
-                .eq('team_id', winnerId)
-                .limit(1)
-                .single();
-
+            const tournamentPair = await resolveTournamentPairForTeam();
             if (tournamentPair) {
                 pairData.player_1_id = tournamentPair.player_1_id;
                 pairData.player_2_id = tournamentPair.player_2_id;
@@ -489,15 +558,10 @@ export async function processMatchFinish(matchId: string): Promise<void> {
     // Update match score with winner
     await updateMatchScoreWithWinner(matchId, winnerId, 'NORMAL');
 
-    // If this is a child match, check parent
     if (match.parent_match_id) {
-        const shouldFinish = await shouldFinishParentMatch(match.parent_match_id);
-        if (shouldFinish) {
-            const parentWinnerId = await finishParentTeamMatch(match.parent_match_id);
-            if (parentWinnerId) {
-                // Propagate parent winner to next match
-                await propagateWinnerToNextMatch(match.parent_match_id, parentWinnerId);
-            }
+        const parentWinnerId = await finishParentTeamMatch(match.parent_match_id);
+        if (parentWinnerId) {
+            await propagateWinnerToNextMatch(match.parent_match_id, parentWinnerId);
         }
     } else {
         // This is a standalone match or parent match, propagate winner

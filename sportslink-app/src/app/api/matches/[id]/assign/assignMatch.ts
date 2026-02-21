@@ -1,16 +1,34 @@
+import { isAdmin, isTournamentAdmin, isUmpire } from '@/lib/permissions';
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
-// PUT /api/matches/:id/assign - 試合割当（審判・コート）
+// PUT /api/matches/:id/assign - 試合割当（審判・コート）（審判または大会管理者または管理者）
 export async function assignMatch(id: string, request: Request) {
     try {
         const body = await request.json();
         const { umpire_id, court_number } = body;
 
-        const supabase = await createClient();
+        if (
+            court_number !== undefined &&
+            court_number !== null &&
+            (!Number.isInteger(court_number) || court_number < 1)
+        ) {
+            return NextResponse.json(
+                { error: 'コート番号は1以上の正の整数のみ指定できます', code: 'E-VER-003' },
+                { status: 400 }
+            );
+        }
 
-        // Get match to get tournament_id
+        const supabase = await createClient();
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+        if (authError || !authUser) {
+            return NextResponse.json(
+                { error: '認証が必要です', code: 'E-AUTH-001' },
+                { status: 401 }
+            );
+        }
+
         const { data: match, error: matchError } = await supabase
             .from('matches')
             .select('tournament_id, umpire_id')
@@ -21,6 +39,19 @@ export async function assignMatch(id: string, request: Request) {
             return NextResponse.json(
                 { error: '試合が見つかりません', code: 'E-NOT-FOUND' },
                 { status: 404 }
+            );
+        }
+
+        const tournamentId = match.tournament_id as string;
+        const [umpire, tournamentAdmin, admin] = await Promise.all([
+            isUmpire(authUser.id, tournamentId, id),
+            isTournamentAdmin(authUser.id, tournamentId),
+            isAdmin(authUser.id),
+        ]);
+        if (!umpire && !tournamentAdmin && !admin) {
+            return NextResponse.json(
+                { error: 'この試合の割当を変更する権限がありません', code: 'E-AUTH-002' },
+                { status: 403 }
             );
         }
 

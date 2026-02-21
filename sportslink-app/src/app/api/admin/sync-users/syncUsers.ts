@@ -1,17 +1,35 @@
 import { createAdminClient } from '@/lib/supabase/admin';
+import { isAdmin } from '@/lib/permissions';
+import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
 /**
  * 既存のauth.usersをpublic.usersに同期する
- * 開発環境でのみ使用可能
+ * 開発環境では誰でも実行可能。本番で ALLOW_USER_SYNC 時は管理者ロール必須。
  */
-export async function syncUsers() {
-    // 開発環境でのみ実行可能
+export async function syncUsers(request: Request) {
     if (process.env.NODE_ENV !== 'development' && process.env.ALLOW_USER_SYNC !== 'true') {
         return NextResponse.json(
             { error: 'This endpoint is only available in development or when ALLOW_USER_SYNC is set' },
             { status: 403 }
         );
+    }
+
+    if (process.env.ALLOW_USER_SYNC === 'true') {
+        const supabase = await createClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            return NextResponse.json(
+                { error: '認証が必要です', code: 'E-AUTH-001' },
+                { status: 401 }
+            );
+        }
+        if (!(await isAdmin(user.id))) {
+            return NextResponse.json(
+                { error: '管理者のみ実行できます', code: 'E-AUTH-002' },
+                { status: 403 }
+            );
+        }
     }
 
     try {

@@ -1,8 +1,17 @@
+import { checkRateLimit } from '@/lib/rateLimit';
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
 export async function submitContact(request: Request) {
     try {
+        const { allowed, retryAfter } = checkRateLimit(request, 'contact');
+        if (!allowed) {
+            return NextResponse.json(
+                { error: '送信が多すぎます。しばらく経ってからお試しください。', code: 'E-RATE-001' },
+                { status: 429, headers: retryAfter ? { 'Retry-After': String(retryAfter) } : undefined }
+            );
+        }
+
         const { category, email, subject, message } = await request.json();
 
         if (!category || !email || !subject || !message) {

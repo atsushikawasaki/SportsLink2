@@ -17,7 +17,6 @@ interface Player {
 interface Team {
     id: string;
     name: string;
-    school_name: string;
 }
 
 export default function PlayersPage() {
@@ -50,7 +49,7 @@ export default function PlayersPage() {
             const playersRes = await fetch(`/api/teams/${teamId}/players`);
             const playersData = await playersRes.json();
             if (playersRes.ok) {
-                setPlayers(playersData.data || []);
+                setPlayers(playersData.players || []);
             }
         } catch (err) {
             console.error('Failed to fetch data:', err);
@@ -130,7 +129,7 @@ export default function PlayersPage() {
                             <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
                                 選手一覧
                             </h1>
-                            <p className="text-slate-400 mt-2">{team.name} ({team.school_name})</p>
+                            <p className="text-slate-400 mt-2">{team.name}</p>
                         </div>
                         <Link
                             href={`/teams/${teamId}/players/new`}

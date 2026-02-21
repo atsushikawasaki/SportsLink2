@@ -1,65 +1,84 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getMatch } from '../getMatch';
 
-// Supabaseクライアントをモック
-const mockSelect = vi.fn();
-const mockEq = vi.fn();
-const mockSingle = vi.fn();
-const mockOrder = vi.fn();
 const mockFrom = vi.fn();
+const mockGetUser = vi.fn();
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
     from: mockFrom,
+    auth: {
+      getUser: mockGetUser,
+    },
   })),
 }));
+
+vi.mock('@/lib/supabase/admin', () => ({
+  createAdminClient: vi.fn(() => ({
+    from: mockFrom,
+  })),
+}));
+
+vi.mock('@/lib/permissions', () => ({
+  isAdmin: vi.fn().mockResolvedValue(false),
+  isTournamentAdmin: vi.fn().mockResolvedValue(false),
+}));
+
+function makeSelectEqSingle(resolveValue: { data: unknown; error: unknown }) {
+  const single = vi.fn().mockResolvedValue(resolveValue);
+  const eq = vi.fn().mockReturnValue({ single });
+  const select = vi.fn().mockReturnValue({ eq });
+  return { select, eq, single };
+}
+
+function makeSelectEqOrder(resolveValue: { data: unknown[] }) {
+  const thenable = {
+    then: (fn: (v: { data: unknown[]; error: null }) => unknown) =>
+      Promise.resolve(fn({ data: resolveValue.data, error: null })),
+    catch: vi.fn(),
+  };
+  const order = vi.fn().mockReturnValue(thenable);
+  const eq = vi.fn().mockReturnValue({ order });
+  const select = vi.fn().mockReturnValue({ eq });
+  return { select, eq, order };
+}
 
 describe('getMatch', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    
-    const mockQueryChain = {
-      select: mockSelect,
-      eq: mockEq,
-      single: mockSingle,
-      order: mockOrder,
-    };
-    
-    mockFrom.mockImplementation(() => mockQueryChain);
-    mockSelect.mockReturnValue(mockQueryChain);
-    mockEq.mockReturnValue(mockQueryChain);
-    mockOrder.mockReturnValue({
-      data: [],
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: 'user-1' } },
       error: null,
     });
   });
 
   it('should get match successfully', async () => {
-    const mockMatch = {
-      id: 'match-123',
-      tournament_id: 'tournament-123',
-      round_name: 'Round 1',
-      status: 'inprogress',
-      match_type: 'individual_match',
-    };
-
-    // First call: get match
-    mockSingle.mockResolvedValueOnce({
-      data: mockMatch,
+    const chain1 = makeSelectEqSingle({
+      data: { id: 'match-123', tournament_id: 'tournament-123' },
       error: null,
     });
-
-    // Second call: get match_scores (single returns null when no data)
-    mockSingle.mockResolvedValueOnce({
-      data: null,
+    const chain2 = makeSelectEqSingle({
+      data: { created_by_user_id: 'user-1' },
       error: null,
     });
-
-    // Third call: get match_pairs (order returns array)
-    mockOrder.mockResolvedValueOnce({
-      data: [],
+    const chain3 = makeSelectEqSingle({
+      data: {
+        id: 'match-123',
+        tournament_id: 'tournament-123',
+        round_name: 'Round 1',
+        status: 'inprogress',
+        match_type: 'individual_match',
+        match_scores: [],
+        match_pairs: [],
+        users: null,
+        tournaments: null,
+      },
       error: null,
     });
+    mockFrom
+      .mockReturnValueOnce(chain1)
+      .mockReturnValueOnce(chain2)
+      .mockReturnValueOnce(chain3);
 
     const response = await getMatch('match-123');
     const data = await response.json();
@@ -71,10 +90,11 @@ describe('getMatch', () => {
   });
 
   it('should return 404 when match not found', async () => {
-    mockSingle.mockResolvedValueOnce({
+    const chain1 = makeSelectEqSingle({
       data: null,
       error: { message: 'Not found' },
     });
+    mockFrom.mockReturnValueOnce(chain1);
 
     const response = await getMatch('nonexistent-match');
     const data = await response.json();
@@ -85,41 +105,35 @@ describe('getMatch', () => {
   });
 
   it('should get umpire information when umpire_id exists', async () => {
-    const mockMatch = {
-      id: 'match-123',
-      umpire_id: 'umpire-456',
-      match_type: 'individual_match',
-    };
-
     const mockUmpire = {
       id: 'umpire-456',
       display_name: 'Umpire Name',
       email: 'umpire@example.com',
     };
-
-    // First call: get match
-    mockSingle.mockResolvedValueOnce({
-      data: mockMatch,
+    const chain1 = makeSelectEqSingle({
+      data: { id: 'match-123', tournament_id: 'tournament-123' },
       error: null,
     });
-
-    // Second call: get match_scores
-    mockSingle.mockResolvedValueOnce({
-      data: null,
+    const chain2 = makeSelectEqSingle({
+      data: { created_by_user_id: 'other' },
       error: null,
     });
-
-    // Third call: get match_pairs
-    mockOrder.mockResolvedValueOnce({
-      data: [],
+    const chain3 = makeSelectEqSingle({
+      data: {
+        id: 'match-123',
+        umpire_id: 'umpire-456',
+        match_type: 'individual_match',
+        match_scores: [],
+        match_pairs: [],
+        users: mockUmpire,
+        tournaments: null,
+      },
       error: null,
     });
-
-    // Fourth call: get umpire (users table)
-    mockSingle.mockResolvedValueOnce({
-      data: mockUmpire,
-      error: null,
-    });
+    mockFrom
+      .mockReturnValueOnce(chain1)
+      .mockReturnValueOnce(chain2)
+      .mockReturnValueOnce(chain3);
 
     const response = await getMatch('match-123');
     const data = await response.json();
@@ -129,39 +143,35 @@ describe('getMatch', () => {
   });
 
   it('should get child matches for team_match', async () => {
-    const mockMatch = {
-      id: 'match-123',
-      match_type: 'team_match',
-    };
-
     const mockChildMatches = [
       { id: 'child-1', parent_match_id: 'match-123' },
       { id: 'child-2', parent_match_id: 'match-123' },
     ];
-
-    // First call: get match
-    mockSingle.mockResolvedValueOnce({
-      data: mockMatch,
+    const chain1 = makeSelectEqSingle({
+      data: { id: 'match-123', tournament_id: 'tournament-123' },
       error: null,
     });
-
-    // Second call: get match_scores
-    mockSingle.mockResolvedValueOnce({
-      data: null,
+    const chain2 = makeSelectEqSingle({
+      data: { created_by_user_id: 'user-1' },
       error: null,
     });
-
-    // Third call: get match_pairs
-    mockOrder.mockResolvedValueOnce({
-      data: [],
+    const chain3 = makeSelectEqSingle({
+      data: {
+        id: 'match-123',
+        match_type: 'team_match',
+        match_scores: [],
+        match_pairs: [],
+        users: null,
+        tournaments: null,
+      },
       error: null,
     });
-
-    // Fourth call: get child matches
-    mockOrder.mockResolvedValueOnce({
-      data: mockChildMatches,
-      error: null,
-    });
+    const chain4 = makeSelectEqOrder({ data: mockChildMatches });
+    mockFrom
+      .mockReturnValueOnce(chain1)
+      .mockReturnValueOnce(chain2)
+      .mockReturnValueOnce(chain3)
+      .mockReturnValueOnce(chain4);
 
     const response = await getMatch('match-123');
     const data = await response.json();
@@ -183,4 +193,3 @@ describe('getMatch', () => {
     expect(data.code).toBe('E-SERVER-001');
   });
 });
-

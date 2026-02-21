@@ -52,6 +52,19 @@ npm run test:coverage
 npm run test:fix
 ```
 
+### 結合テスト（Supabase 接続）をスキップさせずに実行する
+
+`npm run test` 実行時に、Vitest は `.env.local` と `.env.test` を読み込みます（`.env.test` が後なので上書きされます）。  
+結合テスト（`connection.integration.test.ts`）をスキップさせずに実行するには、次のいずれかを行ってください。
+
+- **`.env.test` を用意する**  
+  `.env.test.example` をコピーして `.env.test` を作成し、Supabase の URL と anon キーを設定する。  
+  `cp .env.test.example .env.test` のあと、値を編集。
+- **既存の `.env.local` を使う**  
+  `.env.local` に `NEXT_PUBLIC_SUPABASE_URL` と `NEXT_PUBLIC_SUPABASE_ANON_KEY` が設定されていれば、そのまま `npm run test` で結合テストも実行されます（`.env.test` が無い場合は `.env.local` の値が使われます）。
+
+`.env.test` は `.gitignore` に含まれており、リポジトリにはコミットされません。
+
 ### 自動テストフロー
 
 GitHub Actionsで以下の自動テストフローが設定されています：
@@ -84,6 +97,25 @@ describe('機能名', () => {
   });
 });
 ```
+
+## 審判用ゲストアカウント（ドロー生成）
+
+マイグレーション `024_umpire_nullable_and_guest_umpire.sql` で以下を実施します。
+
+- **matches.umpire_id** を NULL 許可にし、「未割り当て」を選択可能にします。
+- **審判用ゲストアカウント**を 1 件登録します（`auth.users` / `public.users` / `auth.identities`）。
+  - 固定 UUID: `11111111-1111-1111-1111-111111111111`
+  - メール: `guest-umpire@sportslink.local`
+  - 表示名: ゲスト審判
+  - 初期パスワード: `GuestUmpire1!`（本番では変更を推奨）
+
+ドロー生成で「ゲスト審判」を選ぶには、環境変数にゲスト審判のユーザー ID を設定してください。
+
+```env
+GUEST_UMPIRE_USER_ID=11111111-1111-1111-1111-111111111111
+```
+
+Supabase のホスト環境によっては `auth.users` への直接 INSERT が制限されている場合があります。その場合は Supabase ダッシュボードで同じメール・UUID でユーザーを作成し、`GUEST_UMPIRE_USER_ID` にその ID を設定してください。
 
 ## Deploy on Vercel
 

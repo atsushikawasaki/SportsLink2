@@ -1,13 +1,33 @@
+import { isAdmin, isTournamentAdmin, isUmpire } from '@/lib/permissions';
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { processMatchFinish } from '@/lib/services/matchFlowService';
 
-// POST /api/scoring/matches/:matchId/finish - 試合終了
-export async function finishMatch(matchId: string) {
+// POST /api/scoring/matches/:matchId/finish - 試合終了（審判または大会管理者または管理者）
+export async function finishMatch(matchId: string, request?: Request) {
     try {
         const supabase = await createClient();
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+        if (authError || !authUser) {
+            return NextResponse.json(
+                { error: '認証が必要です', code: 'E-AUTH-001' },
+                { status: 401 }
+            );
+        }
 
-        // 試合情報を取得（大会情報、スコア、ペア情報を含む）
+        let matchVersion: number | undefined;
+        if (request) {
+            try {
+                const body = await request.json();
+                if (typeof body?.matchVersion === 'number') matchVersion = body.matchVersion;
+            } catch {
+                return NextResponse.json(
+                    { error: 'リクエストボディが不正なJSONです', code: 'E-VER-003' },
+                    { status: 400 }
+                );
+            }
+        }
+
         const { data: match, error: matchError } = await supabase
             .from('matches')
             .select(`
@@ -34,7 +54,28 @@ export async function finishMatch(matchId: string) {
             );
         }
 
-        // 試合ステータスをfinishedに更新
+        if (matchVersion !== undefined && (match as { version?: number }).version !== matchVersion) {
+            return NextResponse.json(
+                { error: 'データが競合しています。再同期してください', code: 'E-CONFL-001' },
+                { status: 409 }
+            );
+        }
+
+        const tournamentId = (match as { tournament_id?: string }).tournament_id as string;
+        const [umpire, tournamentAdmin, admin] = await Promise.all([
+            isUmpire(authUser.id, tournamentId, matchId),
+            isTournamentAdmin(authUser.id, tournamentId),
+            isAdmin(authUser.id),
+        ]);
+        if (!umpire && !tournamentAdmin && !admin) {
+            return NextResponse.json(
+                { error: 'この試合を終了する権限がありません', code: 'E-AUTH-002' },
+                { status: 403 }
+            );
+        }
+
+        await processMatchFinish(matchId);
+
         const { data: updatedMatch, error: updateError } = await supabase
             .from('matches')
             .update({ status: 'finished' })
@@ -49,24 +90,18 @@ export async function finishMatch(matchId: string) {
             );
         }
 
-        // Process match finish with automatic updates (winner determination, parent match, next match)
-        try {
-            await processMatchFinish(matchId);
-        } catch (flowError) {
-            console.error('Match flow processing error:', flowError);
-            // Continue even if flow processing fails - match is already marked as finished
-        }
-
-        // 敗者審判モードの場合、審判権限の自動委譲処理
         const tournament = match.tournaments as any;
         if (tournament?.umpire_mode === 'LOSER' && match.match_scores && match.match_scores.length > 0) {
             const score = match.match_scores[0];
             const scoreA = score.game_count_a || 0;
             const scoreB = score.game_count_b || 0;
+            const loserPair =
+                scoreA < scoreB
+                    ? match.match_pairs?.[0]
+                    : scoreB < scoreA
+                      ? match.match_pairs?.[1]
+                      : null;
 
-            // 敗者を判定
-            const loserPair = scoreA < scoreB ? match.match_pairs?.[0] : match.match_pairs?.[1];
-            
             if (loserPair && match.next_match_id) {
                 // 敗者のエントリーからteam_idを取得
                 const { data: loserEntry } = await supabase

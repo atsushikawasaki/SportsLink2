@@ -5,8 +5,10 @@ import { NextResponse } from 'next/server';
 export async function getTournaments(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
-        const limit = parseInt(searchParams.get('limit') || '10');
-        const offset = parseInt(searchParams.get('offset') || '0');
+        const limitParam = searchParams.get('limit');
+        const offsetParam = searchParams.get('offset');
+        const limit = Math.max(1, Number.isNaN(parseInt(limitParam || '10', 10)) ? 10 : parseInt(limitParam || '10', 10));
+        const offset = Math.max(0, Number.isNaN(parseInt(offsetParam || '0', 10)) ? 0 : parseInt(offsetParam || '0', 10));
         const status = searchParams.get('status');
         const search = searchParams.get('search');
         const startDate = searchParams.get('start_date');

@@ -6,8 +6,29 @@ import { getConsentVersions } from '@/lib/consent-versions';
 // POST /api/auth/consent/reagree - 規約再同意
 export async function reagreeConsent(request: Request) {
     try {
-        const body = await request.json();
-        const { agree_terms, agree_privacy } = body;
+        if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+            return NextResponse.json(
+                { error: 'Supabaseの設定が不足しています（NEXT_PUBLIC_SUPABASE_URL / ANON_KEY）', code: 'E-CONFIG-001' },
+                { status: 500 }
+            );
+        }
+        if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+            return NextResponse.json(
+                { error: 'SUPABASE_SERVICE_ROLE_KEY が設定されていません。.env.local を確認してください。', code: 'E-CONFIG-002' },
+                { status: 500 }
+            );
+        }
+
+        let body: { agree_terms?: boolean; agree_privacy?: boolean };
+        try {
+            body = await request.json();
+        } catch {
+            return NextResponse.json(
+                { error: 'リクエストボディが不正です', code: 'E-BAD-REQUEST' },
+                { status: 400 }
+            );
+        }
+        const { agree_terms, agree_privacy } = body ?? {};
 
         const supabase = await createClient();
 
@@ -43,7 +64,7 @@ export async function reagreeConsent(request: Request) {
             });
 
             // まず、メールアドレスで既存のユーザーを検索
-            const { data: existingUserByEmail, error: emailSearchError } = await adminClient
+            const { data: existingUserByEmail } = await adminClient
                 .from('users')
                 .select('id, email')
                 .eq('email', user.email || '')
@@ -205,7 +226,7 @@ export async function reagreeConsent(request: Request) {
         const userAgent = requestHeaders.get('user-agent') || 'unknown';
         const versions = getConsentVersions();
 
-        const consentsToInsert: any[] = [];
+        const consentsToInsert: { user_id: string; consent_type: string; version: string; ip_address: string; user_agent: string }[] = [];
 
         if (agree_terms) {
             consentsToInsert.push({
@@ -234,7 +255,7 @@ export async function reagreeConsent(request: Request) {
             );
         }
 
-        const { error: consentError } = await supabase
+        const { error: consentError } = await adminClient
             .from('user_consents')
             .insert(consentsToInsert as never[]);
 
@@ -251,8 +272,14 @@ export async function reagreeConsent(request: Request) {
         });
     } catch (error) {
         console.error('Re-consent error:', error);
+        const message = error instanceof Error ? error.message : String(error);
+        const isDev = process.env.NODE_ENV === 'development';
         return NextResponse.json(
-            { error: '再同意の処理に失敗しました', code: 'E-SERVER-001' },
+            {
+                error: isDev ? message : '再同意の処理に失敗しました',
+                code: 'E-SERVER-001',
+                ...(isDev && { details: error instanceof Error ? error.stack : undefined }),
+            },
             { status: 500 }
         );
     }

@@ -39,7 +39,7 @@ export default function EditTournamentPage() {
         formState: { errors },
         reset,
     } = useForm<TournamentInput>({
-        resolver: zodResolver(tournamentSchema),
+        resolver: zodResolver(tournamentSchema) as any,
     });
 
     useEffect(() => {
@@ -135,7 +135,7 @@ export default function EditTournamentPage() {
                     )}
 
                     {/* Form */}
-                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+                    <form onSubmit={handleSubmit(onSubmit as (data: TournamentInput) => void)} className="space-y-6">
                         {/* Name */}
                         <div>
                             <label htmlFor="name" className="block text-sm font-medium text-slate-300 mb-2">

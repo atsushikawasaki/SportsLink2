@@ -8,34 +8,42 @@ const mockIs = vi.fn();
 const mockSingle = vi.fn();
 const mockInsert = vi.fn();
 const mockFrom = vi.fn();
+const mockGetUser = vi.fn();
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
     from: mockFrom,
+    auth: {
+      getUser: mockGetUser,
+    },
   })),
+}));
+
+vi.mock('@/lib/permissions', () => ({
+  isAdmin: vi.fn().mockResolvedValue(true),
 }));
 
 describe('assignRole', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: 'admin-user-id' } },
+      error: null,
+    });
     const mockQueryChain = {
       eq: mockEq,
       is: mockIs,
       single: mockSingle,
     };
-    
     const mockInsertChain = {
       select: vi.fn().mockReturnValue({
         single: mockSingle,
       }),
     };
-    
     mockFrom.mockReturnValue({
       select: mockSelect,
       insert: vi.fn().mockReturnValue(mockInsertChain),
     });
-    
     mockSelect.mockReturnValue(mockQueryChain);
     mockEq.mockReturnValue(mockQueryChain);
     mockIs.mockReturnValue(mockQueryChain);

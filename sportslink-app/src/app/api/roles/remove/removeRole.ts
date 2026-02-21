@@ -1,10 +1,27 @@
+import { isAdmin } from '@/lib/permissions';
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { RoleType } from '@/lib/permissions';
 
-// DELETE /api/roles/remove - 権限削除
+// DELETE /api/roles/remove - 権限削除（admin のみ）
 export async function removeRole(request: Request) {
     try {
+        const supabase = await createClient();
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+        if (authError || !authUser) {
+            return NextResponse.json(
+                { error: '認証が必要です', code: 'E-AUTH-001' },
+                { status: 401 }
+            );
+        }
+        const hasAdmin = await isAdmin(authUser.id);
+        if (!hasAdmin) {
+            return NextResponse.json(
+                { error: 'この操作には管理者権限が必要です', code: 'E-AUTH-002' },
+                { status: 403 }
+            );
+        }
+
         const { searchParams } = new URL(request.url);
         const user_id = searchParams.get('user_id');
         const role = searchParams.get('role');
@@ -35,8 +52,6 @@ export async function removeRole(request: Request) {
                 { status: 400 }
             );
         }
-
-        const supabase = await createClient();
 
         let query = supabase
             .from('user_permissions')

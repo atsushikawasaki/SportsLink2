@@ -134,6 +134,11 @@ export default function LivePage() {
         };
     }, [tournamentId, supabase, fetchData]);
 
+    const liveMatches = useMemo(
+        () => matches.filter((m) => m.status === 'inprogress' || m.status === 'finished'),
+        [matches]
+    );
+
     if (loading) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
@@ -141,11 +146,6 @@ export default function LivePage() {
             </div>
         );
     }
-
-    const liveMatches = useMemo(
-        () => matches.filter((m) => m.status === 'inprogress' || m.status === 'finished'),
-        [matches]
-    );
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">

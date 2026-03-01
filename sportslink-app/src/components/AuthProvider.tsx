@@ -81,16 +81,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         let isMounted = true;
         initialCheckDoneRef.current = false;
 
-        const setUserFromSession = (sessionUser: { id: string; email?: string | null; user_metadata?: Record<string, any>; created_at?: string }) => {
+        const setUserFromSession = (sessionUser: { id: string; email?: string | null; user_metadata?: Record<string, unknown>; created_at?: string }) => {
             storeRef.current.setUser({
                 id: sessionUser.id,
                 email: sessionUser.email || '',
-                display_name: sessionUser.user_metadata?.display_name || '',
+                display_name: (sessionUser.user_metadata?.display_name as string) || '',
+                password_hash: null,
                 created_at: sessionUser.created_at || new Date().toISOString(),
-            } as any);
+            });
         };
 
-        const fetchProfile = async (sessionUser: { id: string; email?: string | null; user_metadata?: Record<string, any>; created_at?: string }) => {
+        const fetchProfile = async (sessionUser: { id: string; email?: string | null; user_metadata?: Record<string, unknown>; created_at?: string }) => {
             try {
                 const profileResponse = await fetch('/api/auth/me', {
                     method: 'GET',
@@ -122,12 +123,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
                 if (sessionError) {
                     console.error('Session check error:', sessionError);
-                    const currentUser = useAuthStore.getState().user;
-                    if (!currentUser) {
-                        storeRef.current.logout();
-                        if (!isAuthPage && !isHomePage) {
-                            router.push('/login');
-                        }
+                    // signOut() は onAuthStateChange と循環するため、ローカルステートのみクリア
+                    storeRef.current.setUser(null);
+                    storeRef.current.setAccessToken(null);
+                    if (!isAuthPage && !isHomePage) {
+                        router.push('/login');
                     }
                     return;
                 }
@@ -143,10 +143,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         router.push('/dashboard');
                     }
                 } else {
-                    const currentUser = useAuthStore.getState().user;
-                    if (currentUser) {
-                        storeRef.current.logout();
-                    }
+                    // signOut() は onAuthStateChange と循環するため、ローカルステートのみクリア
+                    storeRef.current.setUser(null);
+                    storeRef.current.setAccessToken(null);
                     if (!isAuthPage && !isHomePage) {
                         router.push('/login');
                     }
@@ -154,12 +153,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             } catch (error) {
                 console.error('Auth check error:', error);
                 if (isMounted) {
-                    const currentUser = useAuthStore.getState().user;
-                    if (!currentUser) {
-                        storeRef.current.logout();
-                        if (!isAuthPage && !isHomePage) {
-                            router.push('/login');
-                        }
+                    // signOut() は onAuthStateChange と循環するため、ローカルステートのみクリア
+                    storeRef.current.setUser(null);
+                    storeRef.current.setAccessToken(null);
+                    if (!isAuthPage && !isHomePage) {
+                        router.push('/login');
                     }
                 }
             } finally {
@@ -191,7 +189,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 }
 
                 if (event === 'SIGNED_OUT' || !session) {
-                    storeRef.current.logout();
+                    // logout() は signOut() を含むため、ここで呼ぶと SIGNED_OUT が再発火して無限ループになる。
+                    // ローカルステートのクリアのみ行う。
+                    storeRef.current.setUser(null);
+                    storeRef.current.setAccessToken(null);
                     if (!isAuthPage && !isHomePage) router.push('/login');
                 } else if (event === 'TOKEN_REFRESHED') {
                     // トークンリフレッシュ時はアクセストークンだけ更新（プロフィール再取得不要）

@@ -90,7 +90,10 @@ export async function getDraw(id: string) {
                 }, {});
                 const hasRealFinished = finishedMatchIds.some((matchId) => {
                     const reasons = matchIdToReasons[matchId] ?? [];
-                    return !(reasons.length === 1 && reasons[0] === 'DEFAULT');
+                    const isByeOnly =
+                        reasons.length === 0 ||
+                        reasons.every((r) => r === 'DEFAULT' || r == null);
+                    return !isByeOnly;
                 });
                 canRegenerate = !hasRealFinished;
             }

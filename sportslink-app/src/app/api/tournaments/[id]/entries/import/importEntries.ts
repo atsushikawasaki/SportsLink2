@@ -278,6 +278,9 @@ export async function importEntries(id: string, request: Request) {
                     .select('id')
                     .single();
                 if (teamEntryError || !newTeamEntry) {
+                    if (teamEntryError?.code === '23505' && /idx_tournament_entries_team_unique/.test(teamEntryError?.message ?? '')) {
+                        throw new Error(`同じ代表チームが既にこの大会に登録されています: ${repTeamName}。団体戦では1チーム1エントリーです。`);
+                    }
                     throw new Error(`チームエントリー作成失敗: ${teamEntryError?.message || '不明'}`);
                 }
                 const key = `${repTeamName}\t${regionName}`;
@@ -341,6 +344,11 @@ export async function importEntries(id: string, request: Request) {
                     .select('id')
                     .single();
                 if (entryError || !newEntry) {
+                    if (entryError?.code === '23505' && /idx_tournament_entries_team_unique/.test(entryError?.message ?? '')) {
+                        throw new Error(
+                            `同じ代表チームの重複（行${row.rowNumber}）。個人戦では同一代表チームから複数エントリー可能です。マイグレーション 030 を適用してください。`
+                        );
+                    }
                     throw new Error(`エントリー作成失敗 (行${row.rowNumber}): ${entryError?.message || '不明'}`);
                 }
 
@@ -419,6 +427,30 @@ export async function importEntries(id: string, request: Request) {
             const idsToDeactivate = (toDeactivate ?? [])
                 .map((r: { id: string }) => r.id)
                 .filter((eid: string) => !insertedEntryIds.includes(eid));
+
+            // Check if any entries to deactivate are assigned to active (non-finished) matches via match_slots
+            if (idsToDeactivate.length > 0) {
+                const { data: activeSlots } = await adminClient
+                    .from('match_slots')
+                    .select('entry_id, match_id, matches!inner(status)')
+                    .in('entry_id', idsToDeactivate)
+                    .not('matches.status', 'eq', 'finished');
+
+                const entriesWithActiveMatches = new Set(
+                    (activeSlots ?? [])
+                        .filter((s: any) => s.matches?.status && s.matches.status !== 'pending')
+                        .map((s: any) => s.entry_id as string)
+                );
+
+                if (entriesWithActiveMatches.size > 0) {
+                    return NextResponse.json({
+                        error: `${entriesWithActiveMatches.size}件のエントリーが進行中の試合に割り当てられているため、置換モードで削除できません。先に該当試合を終了してください。`,
+                        code: 'E-VER-003',
+                        activeEntryCount: entriesWithActiveMatches.size,
+                    }, { status: 400 });
+                }
+            }
+
             for (const eid of idsToDeactivate) {
                 await adminClient
                     .from('tournament_entries')

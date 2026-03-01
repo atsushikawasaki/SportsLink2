@@ -62,7 +62,7 @@ export default function SignupPage() {
                         <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
                             新規登録
                         </h1>
-                        <p className="text-slate-400 mt-2">Sport Linkアカウントを作成</p>
+                        <p className="text-slate-400 mt-2">SportsLinkアカウントを作成</p>
                     </div>
 
                     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">

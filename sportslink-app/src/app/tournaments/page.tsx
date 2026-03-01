@@ -8,6 +8,7 @@ import { Trophy, Plus, Search, Filter, Calendar, ChevronLeft, ChevronRight } fro
 import AppHeader from '@/components/AppHeader';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import { SkeletonGrid } from '@/components/Skeleton';
+import CollapsibleFilters from '@/components/ui/CollapsibleFilters';
 
 interface Tournament {
     id: string;
@@ -128,8 +129,18 @@ export default function TournamentsPage() {
                             </h1>
                         </div>
 
-                {/* Filters and Actions */}
-                <div className="mb-6 space-y-4">
+                <div className="mb-4 flex justify-end md:hidden">
+                    <Link
+                        href="/tournaments/new"
+                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-semibold rounded-lg shadow-lg hover:from-blue-600 hover:to-cyan-600 transition-all duration-200"
+                    >
+                        <Plus className="w-5 h-5" />
+                        新規大会作成
+                    </Link>
+                </div>
+
+                <CollapsibleFilters>
+                <div className="space-y-4">
                     <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
                         {/* Search */}
                         <div className="relative flex-1 max-w-md">
@@ -158,10 +169,10 @@ export default function TournamentsPage() {
                             </select>
                         </div>
 
-                        {/* New Tournament Button */}
+                        {/* New Tournament Button (desktop) */}
                         <Link
                             href="/tournaments/new"
-                            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-semibold rounded-lg shadow-lg hover:from-blue-600 hover:to-cyan-600 transition-all duration-200"
+                            className="hidden md:flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-semibold rounded-lg shadow-lg hover:from-blue-600 hover:to-cyan-600 transition-all duration-200"
                         >
                             <Plus className="w-5 h-5" />
                             新規大会作成
@@ -202,6 +213,7 @@ export default function TournamentsPage() {
                         )}
                     </div>
                 </div>
+                </CollapsibleFilters>
 
                 {/* Tournaments List */}
                 {loading ? (

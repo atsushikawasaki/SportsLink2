@@ -46,7 +46,7 @@ export async function updateMatch(id: string, request: Request) {
 
         const { data: matchMeta, error: matchError } = await supabase
             .from('matches')
-            .select('tournament_id')
+            .select('tournament_id, status')
             .eq('id', id)
             .single();
         if (matchError || !matchMeta) {
@@ -65,6 +65,13 @@ export async function updateMatch(id: string, request: Request) {
             return NextResponse.json(
                 { error: 'この試合を更新する権限がありません', code: 'E-AUTH-002' },
                 { status: 403 }
+            );
+        }
+
+        if (matchMeta.status === 'finished' && updatePayload.status && updatePayload.status !== 'finished') {
+            return NextResponse.json(
+                { error: '終了済みの試合のステータスは変更できません。差し戻し機能をご利用ください。', code: 'E-VER-003' },
+                { status: 400 }
             );
         }
 

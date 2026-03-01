@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback, memo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import Link from 'next/link';
 import { ArrowRight, Clock, Play, CheckCircle, Search, Filter } from 'lucide-react';
 import { MatchStatusFilter, isValidMatchStatusFilter } from '@/types/match.types';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import CollapsibleFilters from '@/components/ui/CollapsibleFilters';
 
 interface Team {
     id: string;
@@ -58,6 +60,10 @@ function MatchCard({
         <div
             className="p-4 bg-slate-700 rounded-lg border border-slate-600 hover:border-blue-500 transition-colors cursor-pointer"
             onClick={() => onNavigate(match.id)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => e.key === 'Enter' && onNavigate(match.id)}
+            aria-label={`${match.round_name} ${getTeamNames(match)} - タップでスコア入力`}
         >
             <div className="flex items-center justify-between">
                 <span className="text-white font-medium">{match.round_name}</span>
@@ -65,6 +71,10 @@ function MatchCard({
             </div>
             <p className="text-slate-300 text-sm mt-1">{getTeamNames(match)}</p>
             <p className="text-slate-400 text-xs mt-1">{getScore(match)}</p>
+            <p className="text-slate-500 text-xs mt-2 flex items-center gap-1">
+                <ArrowRight className="w-3 h-3" />
+                タップでスコア入力
+            </p>
         </div>
     );
 }
@@ -201,8 +211,8 @@ export default function ScoringListPage() {
                         <p className="text-slate-400">担当試合のスコアを入力・確認できます</p>
                     </div>
 
-                    {/* Filters */}
-                    <div className="mb-6 space-y-4">
+                    <CollapsibleFilters>
+                    <div className="space-y-4">
                         {/* Search */}
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -228,7 +238,7 @@ export default function ScoringListPage() {
                                             setStatusFilter(value);
                                         }
                                     }}
-                                    className="px-3 py-1 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    className="px-3 py-2 min-h-[48px] bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 >
                                     <option value="all">すべて</option>
                                     <option value="pending">待機中</option>
@@ -244,7 +254,7 @@ export default function ScoringListPage() {
                                     <select
                                         value={tournamentFilter}
                                         onChange={(e) => setTournamentFilter(e.target.value)}
-                                        className="px-3 py-1 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        className="px-3 py-2 min-h-[48px] bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                                     >
                                         <option value="all">すべて</option>
                                         {tournaments.map((tournament) => (
@@ -257,11 +267,12 @@ export default function ScoringListPage() {
                             )}
                         </div>
                     </div>
+                    </CollapsibleFilters>
 
                     {/* Matches List */}
                     {loading ? (
                         <div className="flex justify-center py-12">
-                            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-400"></div>
+                            <LoadingSpinner />
                         </div>
                     ) : error ? (
                         <div className="text-center py-12">

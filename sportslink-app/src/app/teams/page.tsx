@@ -4,8 +4,10 @@ import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Users, Plus, Search, Trophy, Award, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Users, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import AppHeader from '@/components/AppHeader';
+import Breadcrumbs from '@/components/Breadcrumbs';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 interface Team {
     id: string;
@@ -82,10 +84,11 @@ export default function TeamsPage() {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 {/* Page Header */}
                 <div className="mb-8">
-                        <h1 className="text-3xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
-                            チーム一覧
-                        </h1>
-                    </div>
+                    <Breadcrumbs items={[{ label: 'チーム一覧' }]} />
+                    <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent mt-2">
+                        チーム一覧
+                    </h1>
+                </div>
 
                 {/* Search and Actions */}
                 <div className="mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
@@ -104,7 +107,7 @@ export default function TeamsPage() {
                 {/* Teams List */}
                 {loading ? (
                     <div className="flex justify-center py-12">
-                        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-400"></div>
+                        <LoadingSpinner />
                     </div>
                 ) : error ? (
                     <div className="text-center py-12">
@@ -122,6 +125,19 @@ export default function TeamsPage() {
                         <p className="text-slate-400 text-lg mb-2">
                             {teams.length === 0 ? 'チームがありません' : '条件に一致するチームがありません'}
                         </p>
+                        {teams.length === 0 && (
+                            <p className="text-slate-500 text-sm mb-6">
+                                大会のエントリー管理でチームを登録できます
+                            </p>
+                        )}
+                        {teams.length === 0 && (
+                            <Link
+                                href="/tournaments"
+                                className="inline-block px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                            >
+                                大会一覧へ
+                            </Link>
+                        )}
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -146,21 +162,12 @@ export default function TeamsPage() {
                                     </span>
                                     <span>{new Date(team.created_at).toLocaleDateString('ja-JP')}</span>
                                 </div>
-                                <div className="flex gap-2">
-                                    <Link
-                                        href={`/teams/${team.id}/players`}
-                                        className="flex-1 px-4 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors text-center text-sm"
-                                    >
-                                        選手管理
-                                    </Link>
-                                    <button
-                                        className="px-4 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition-colors text-sm"
-                                        title="戦績確認（未実装）"
-                                        disabled
-                                    >
-                                        <Trophy className="w-4 h-4" />
-                                    </button>
-                                </div>
+                                <Link
+                                    href={`/teams/${team.id}/players`}
+                                    className="block w-full px-4 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors text-center text-sm"
+                                >
+                                    選手管理
+                                </Link>
                             </div>
                         ))}
                     </div>

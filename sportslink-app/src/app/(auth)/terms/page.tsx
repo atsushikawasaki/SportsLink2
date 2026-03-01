@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import MarkdownContent from '@/components/MarkdownContent';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { CONSENT_VERSIONS } from '@/lib/consent-versions';
 
 interface TermsDocument {
@@ -47,7 +48,7 @@ export default function TermsPage() {
     if (loading) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-400"></div>
+                <LoadingSpinner />
             </div>
         );
     }

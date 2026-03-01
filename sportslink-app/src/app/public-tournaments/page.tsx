@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Trophy, Search, Filter, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 import NotificationCenter from '@/components/NotificationCenter';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import CollapsibleFilters from '@/components/ui/CollapsibleFilters';
 
 interface Tournament {
     id: string;
@@ -128,8 +130,8 @@ export default function PublicTournamentsPage() {
                     </div>
                 </header>
 
-                {/* Filters */}
-                <div className="mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                <CollapsibleFilters>
+                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
                     <div className="relative flex-1 max-w-md">
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
                         <input
@@ -154,11 +156,12 @@ export default function PublicTournamentsPage() {
                         </select>
                     </div>
                 </div>
+                </CollapsibleFilters>
 
                 {/* Tournaments List */}
                 {loading ? (
                     <div className="flex justify-center py-12">
-                        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-400"></div>
+                        <LoadingSpinner />
                     </div>
                 ) : error ? (
                     <div className="text-center py-12">
@@ -173,9 +176,22 @@ export default function PublicTournamentsPage() {
                 ) : filteredTournaments.length === 0 ? (
                     <div className="text-center py-12">
                         <Trophy className="w-16 h-16 text-slate-500 mx-auto mb-4" />
-                        <p className="text-slate-400 text-lg">
+                        <p className="text-slate-400 text-lg mb-2">
                             {tournaments.length === 0 ? '公開大会がありません' : '条件に一致する大会がありません'}
                         </p>
+                        {tournaments.length === 0 && (
+                            <p className="text-slate-500 text-sm mb-6">
+                                大会を公開設定にすると、ここに表示されます
+                            </p>
+                        )}
+                        {tournaments.length === 0 && (
+                            <Link
+                                href="/tournaments"
+                                className="inline-block px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                            >
+                                大会一覧へ
+                            </Link>
+                        )}
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

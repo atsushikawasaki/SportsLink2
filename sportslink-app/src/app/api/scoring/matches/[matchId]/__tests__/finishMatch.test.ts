@@ -227,9 +227,35 @@ describe('finishMatch', () => {
     expect(data.code).toBe('E-SERVER-001');
   });
 
-  it('should return 500 when processMatchFinish throws', async () => {
+  it('should return 400 when scores are tied (no winner)', async () => {
     const { processMatchFinish } = await import('@/lib/services/matchFlowService');
-    vi.mocked(processMatchFinish).mockRejectedValueOnce(new Error('Could not determine winner'));
+    const noWinnerError = new Error('Could not determine winner');
+    (noWinnerError as any).code = 'NO_WINNER';
+    vi.mocked(processMatchFinish).mockRejectedValueOnce(noWinnerError);
+
+    const mockMatch = {
+      id: 'match-123',
+      tournament_id: 'tournament-123',
+      status: 'inprogress',
+      match_type: 'individual_match',
+      tournaments: { id: 'tournament-123', umpire_mode: 'ASSIGNED' },
+      match_scores: [],
+      match_pairs: [],
+    };
+
+    mockSingle.mockResolvedValueOnce({ data: mockMatch, error: null });
+
+    const response = await finishMatch('match-123');
+    const data = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(data.error).toContain('スコアが同点');
+    expect(data.code).toBe('E-VER-003');
+  });
+
+  it('should return 500 when processMatchFinish throws unexpected error', async () => {
+    const { processMatchFinish } = await import('@/lib/services/matchFlowService');
+    vi.mocked(processMatchFinish).mockRejectedValueOnce(new Error('Unexpected DB error'));
 
     const mockMatch = {
       id: 'match-123',

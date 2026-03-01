@@ -37,7 +37,7 @@ export async function verifyToken(matchId: string, request: Request) {
             .eq('tournament_id', match.tournament_id)
             .eq('day_token', day_token)
             .eq('is_checked_in', true)
-            .single();
+            .maybeSingle();
 
         if (entryError || !entry) {
             return NextResponse.json(

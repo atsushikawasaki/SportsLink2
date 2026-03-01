@@ -56,7 +56,12 @@ export const useMatchStore = create<MatchStoreState>((set) => ({
     updateScore: (gameCountA, gameCountB, currentScoreA, currentScoreB) =>
         set({ gameCountA, gameCountB, currentScoreA, currentScoreB }),
     addPointToQueue: (point) =>
-        set((state) => ({ localQueue: [...state.localQueue, point] })),
+        set((state) => {
+            if (state.localQueue.some((p) => p.clientUuid === point.clientUuid)) {
+                return state;
+            }
+            return { localQueue: [...state.localQueue, point] };
+        }),
     removePointFromQueue: (id) =>
         set((state) => ({ localQueue: state.localQueue.filter((p) => p.id !== id) })),
     clearQueue: () => set({ localQueue: [] }),

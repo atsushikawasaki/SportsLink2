@@ -85,6 +85,8 @@ export async function addTeamPlayer(id: string, request: Request) {
             .single();
 
         if (playerError || !newPlayer) {
+            // Rollback: delete entry
+            await supabase.from('tournament_entries').delete().eq('id', newEntry.id);
             return NextResponse.json(
                 { error: playerError?.message || '選手の登録に失敗しました', code: 'E-DB-001' },
                 { status: 500 }
@@ -103,6 +105,9 @@ export async function addTeamPlayer(id: string, request: Request) {
             .single();
 
         if (pairError || !newPair) {
+            // Rollback: delete player and entry
+            await supabase.from('tournament_players').delete().eq('id', newPlayer.id);
+            await supabase.from('tournament_entries').delete().eq('id', newEntry.id);
             return NextResponse.json(
                 { error: pairError?.message || 'ペアの登録に失敗しました', code: 'E-DB-001' },
                 { status: 500 }

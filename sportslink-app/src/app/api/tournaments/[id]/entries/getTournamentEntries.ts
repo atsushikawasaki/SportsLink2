@@ -37,6 +37,7 @@ export async function getTournamentEntries(id: string) {
                 )
             `)
             .eq('tournament_id', id)
+            .eq('is_active', true)
             .order('created_at', { ascending: true });
 
         if (entriesError) {

@@ -88,10 +88,20 @@ export async function undoPoint(request: Request) {
             .single();
 
         if (matchRow && typeof matchRow.version === 'number') {
-            await supabase
+            const { data: updatedMatch, error: versionError } = await supabase
                 .from('matches')
                 .update({ version: matchRow.version + 1 })
-                .eq('id', match_id);
+                .eq('id', match_id)
+                .eq('version', matchRow.version)
+                .select('version')
+                .single();
+
+            if (versionError || !updatedMatch) {
+                return NextResponse.json(
+                    { error: 'データが競合しています。再同期してください', code: 'E-CONFL-001' },
+                    { status: 409 }
+                );
+            }
         }
 
         return NextResponse.json({

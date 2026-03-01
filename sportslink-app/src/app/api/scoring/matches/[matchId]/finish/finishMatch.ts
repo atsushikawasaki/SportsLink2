@@ -74,7 +74,17 @@ export async function finishMatch(matchId: string, request?: Request) {
             );
         }
 
-        await processMatchFinish(matchId);
+        try {
+            await processMatchFinish(matchId);
+        } catch (finishError: any) {
+            if (finishError?.code === 'NO_WINNER') {
+                return NextResponse.json(
+                    { error: 'スコアが同点のため、勝者を決定できません。スコアを確認してください。', code: 'E-VER-003' },
+                    { status: 400 }
+                );
+            }
+            throw finishError;
+        }
 
         const { data: updatedMatch, error: updateError } = await supabase
             .from('matches')

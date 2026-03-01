@@ -6,6 +6,7 @@ const mockSelect = vi.fn();
 const mockEq = vi.fn();
 const mockIs = vi.fn();
 const mockSingle = vi.fn();
+const mockMaybeSingle = vi.fn();
 const mockInsert = vi.fn();
 const mockFrom = vi.fn();
 const mockGetUser = vi.fn();
@@ -34,6 +35,7 @@ describe('assignRole', () => {
       eq: mockEq,
       is: mockIs,
       single: mockSingle,
+      maybeSingle: mockMaybeSingle,
     };
     const mockInsertChain = {
       select: vi.fn().mockReturnValue({
@@ -130,9 +132,9 @@ describe('assignRole', () => {
   });
 
   it('should assign admin role without scope', async () => {
-    mockSingle.mockResolvedValueOnce({
+    mockMaybeSingle.mockResolvedValueOnce({
       data: null,
-      error: { code: 'PGRST116' }, // Not found
+      error: null,
     });
 
     const mockPermission = {
@@ -165,9 +167,9 @@ describe('assignRole', () => {
   });
 
   it('should assign tournament_admin role with tournament scope', async () => {
-    mockSingle.mockResolvedValueOnce({
+    mockMaybeSingle.mockResolvedValueOnce({
       data: null,
-      error: { code: 'PGRST116' },
+      error: null,
     });
 
     const mockPermission = {
@@ -202,7 +204,7 @@ describe('assignRole', () => {
   });
 
   it('should return 409 when permission already exists', async () => {
-    mockSingle.mockResolvedValueOnce({
+    mockMaybeSingle.mockResolvedValueOnce({
       data: {
         id: 'perm-123',
         user_id: 'user-123',
@@ -230,9 +232,9 @@ describe('assignRole', () => {
   });
 
   it('should return 500 on database error', async () => {
-    mockSingle.mockResolvedValueOnce({
+    mockMaybeSingle.mockResolvedValueOnce({
       data: null,
-      error: { code: 'PGRST116' },
+      error: null,
     });
 
     mockSingle.mockResolvedValueOnce({

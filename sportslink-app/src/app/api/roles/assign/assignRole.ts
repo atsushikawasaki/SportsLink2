@@ -105,7 +105,7 @@ export async function assignRole(request: Request) {
             existingQuery = existingQuery.is('match_id', null);
         }
 
-        const { data: existing } = await existingQuery.single();
+        const { data: existing } = await existingQuery.maybeSingle();
 
         if (existing) {
             return NextResponse.json(

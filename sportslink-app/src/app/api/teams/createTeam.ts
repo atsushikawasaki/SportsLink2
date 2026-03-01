@@ -8,9 +8,15 @@ export async function createTeam(request: Request) {
         const body = await request.json();
         const { name, team_manager_user_id } = body;
 
-        if (!name) {
+        if (!name || typeof name !== 'string' || name.trim().length === 0) {
             return NextResponse.json(
                 { error: 'チーム名は必須です', code: 'E-VER-003' },
+                { status: 400 }
+            );
+        }
+        if (name.length > 100) {
+            return NextResponse.json(
+                { error: 'チーム名は100文字以内で入力してください', code: 'E-VER-003' },
                 { status: 400 }
             );
         }

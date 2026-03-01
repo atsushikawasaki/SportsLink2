@@ -17,6 +17,14 @@ export async function addPoint(request: Request) {
             );
         }
 
+        const validPointTypes = ['A_score', 'B_score'];
+        if (!validPointTypes.includes(point_type)) {
+            return NextResponse.json(
+                { error: `不正なpoint_typeです。有効な値: ${validPointTypes.join(', ')}`, code: 'E-VER-003' },
+                { status: 400 }
+            );
+        }
+
         const supabase = await createClient();
         const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
         if (authError || !authUser) {

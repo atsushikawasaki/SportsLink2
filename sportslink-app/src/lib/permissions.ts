@@ -165,12 +165,26 @@ export async function getUserPermissions(userId: string): Promise<UserPermission
 
 /**
  * Check if user has admin role (system-wide admin)
- * 
+ * JWT の app_metadata.role を先に確認し、DBへのアクセスを削減する
+ *
  * @param userId - User ID to check
+ * @param appMetadata - Optional JWT app_metadata for fast-path check
  * @returns true if user is admin, false otherwise
  */
-export async function isAdmin(userId: string): Promise<boolean> {
+export async function isAdmin(userId: string, appMetadata?: Record<string, unknown>): Promise<boolean> {
+    if (appMetadata?.role === 'admin') return true;
     return checkPermission(userId, 'admin');
+}
+
+/**
+ * JWT の app_metadata から管理者かどうかを同期的に確認する（DB不要）
+ * supabase.auth.getUser() の返り値の user.app_metadata を渡して使用する
+ *
+ * @param appMetadata - JWT に含まれる app_metadata
+ * @returns true if user is admin
+ */
+export function isAdminFromJWT(appMetadata: Record<string, unknown> | undefined): boolean {
+    return appMetadata?.role === 'admin';
 }
 
 /**

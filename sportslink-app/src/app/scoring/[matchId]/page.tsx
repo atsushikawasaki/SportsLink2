@@ -9,6 +9,7 @@ import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { useNotificationStore } from '@/features/notifications/hooks/useNotificationStore';
 import { ArrowLeft, Undo2, Wifi, WifiOff, Pause, Play, AlertTriangle } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
+import ConflictResolutionModal from '@/features/scoring/components/ConflictResolutionModal';
 import { v4 as uuidv4 } from 'uuid';
 import { createClient } from '@/lib/supabase/client';
 
@@ -411,6 +412,7 @@ export default function ScoringPage() {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+            <ConflictResolutionModal onUseServerScore={fetchMatch} />
             {/* Header */}
             <header className="bg-slate-800/50 backdrop-blur-xl border-b border-slate-700/50 sticky top-0 z-10">
                 <div className="max-w-4xl mx-auto px-4 py-4">

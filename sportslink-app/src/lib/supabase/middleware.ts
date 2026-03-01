@@ -97,6 +97,8 @@ export async function updateSession(request: NextRequest) {
             return redirectResponse;
         }
 
+        const isServerAction = request.headers.get('Next-Action') !== null;
+
         if (pathname.startsWith('/api/')) {
             if (isStateChangingMethod(request.method) && !isPublicApiPath(pathname)) {
                 const cookieToken = request.cookies.get(CSRF_COOKIE_NAME)?.value;
@@ -109,7 +111,7 @@ export async function updateSession(request: NextRequest) {
                 }
             }
 
-            if (!isPublicApiPath(pathname) && !user) {
+            if (!isPublicApiPath(pathname) && !isServerAction && !user) {
                 if (userError) {
                     return NextResponse.json(
                         { error: 'セッションが無効です。再ログインしてください。', code: 'E-SESSION-001' },

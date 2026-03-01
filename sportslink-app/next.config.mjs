@@ -1,13 +1,21 @@
+import { withSentryConfig } from '@sentry/nextjs';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    // ビルド時のESLintエラーを警告として扱う（ビルドを失敗させない）
-    ignoreDuringBuilds: true,
-  },
-  typescript: {
-    // ビルド時のTypeScriptエラーを無視（開発中は別途チェック推奨）
-    ignoreBuildErrors: true,
-  },
+    eslint: {
+        ignoreDuringBuilds: true,
+    },
+    typescript: {
+        ignoreBuildErrors: true,
+    },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+    org: process.env.SENTRY_ORG,
+    project: process.env.SENTRY_PROJECT,
+    silent: !process.env.CI,
+    widenClientFileUpload: true,
+    hideSourceMaps: true,
+    disableLogger: true,
+    automaticVercelMonitors: true,
+});

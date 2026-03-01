@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, memo, useRef } from 'react';
+import { memo, useEffect } from 'react';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -8,6 +8,7 @@ import { Trophy, Users, Calendar, Plus, ArrowRight, Play, Clock, Award, ChevronR
 import AppHeader from '@/components/AppHeader';
 import { SkeletonCard, SkeletonList } from '@/components/Skeleton';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { useDashboard } from '@/lib/hooks/queries/useDashboard';
 
 interface Tournament {
     id: string;
@@ -22,31 +23,15 @@ interface Match {
     round_name: string;
     match_number: number;
     status: 'pending' | 'inprogress' | 'finished';
-    tournaments?: {
-        id: string;
-        name: string;
-    };
-    match_pairs?: Array<{
-        teams?: {
-            name: string;
-        };
-    }>;
+    tournaments?: { id: string; name: string };
+    match_pairs?: Array<{ teams?: { name: string } }>;
 }
 
 export default function DashboardPage() {
     const { user, isAuthenticated, setLoading: setAuthLoading } = useAuthStore();
     const router = useRouter();
-    const [tournaments, setTournaments] = useState<Tournament[]>([]);
-    const [assignedMatches, setAssignedMatches] = useState<Match[]>([]);
-    const [loading, setLoadingState] = useState(true);
-    const [tournamentStats, setTournamentStats] = useState({
-        managed: 0,
-        entered: 0,
-        public: 0,
-    });
-
-    const userIdRef = useRef(user?.id);
-    userIdRef.current = user?.id;
+    const { isLoading, tournaments, assignedMatches, needsReconsent, tournamentStats } =
+        useDashboard(user?.id);
 
     useEffect(() => {
         if (!isAuthenticated) {
@@ -54,96 +39,13 @@ export default function DashboardPage() {
             return;
         }
         setAuthLoading(false);
+    }, [isAuthenticated, router, setAuthLoading]);
 
-        const FETCH_TIMEOUT_MS = 10_000;
-
-        const fetchData = async () => {
-            try {
-                // 個別のAbortControllerで各リクエストにタイムアウトを設定
-                const createFetchWithTimeout = (url: string, defaultValue: any) => {
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-                    return fetch(url, { signal: controller.signal })
-                        .then(async (res) => {
-                            clearTimeout(timeoutId);
-                            if (!res.ok) {
-                                const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
-                                console.error(`Failed to fetch ${url}:`, errorData);
-                                return defaultValue;
-                            }
-                            return res.json();
-                        })
-                        .catch((err) => {
-                            clearTimeout(timeoutId);
-                            if (err.name === 'AbortError') {
-                                console.warn(`Fetch timed out: ${url}`);
-                            } else {
-                                console.error(`Network error fetching ${url}:`, err);
-                            }
-                            return defaultValue;
-                        });
-                };
-
-                const promises: Promise<any>[] = [
-                    createFetchWithTimeout('/api/tournaments?limit=5', { data: [] }),
-                    createFetchWithTimeout('/api/auth/consent/check', { needs_reconsent: false }),
-                ];
-
-                const userId = userIdRef.current;
-                if (userId) {
-                    promises.push(
-                        createFetchWithTimeout(`/api/matches/umpire/${userId}`, { data: [] })
-                    );
-                }
-
-                const [tournamentsResult, consentResult, matchesResult] = await Promise.all(promises);
-
-                // 規約同意チェック
-                if (consentResult?.needs_reconsent) {
-                    router.push('/consent');
-                    return;
-                }
-
-                // 大会一覧の処理
-                if (tournamentsResult?.data) {
-                    const allTournaments = tournamentsResult.data || [];
-                    setTournaments(allTournaments);
-
-                    // 大会サマリー計算
-                    const managed = allTournaments.length;
-                    const entered = allTournaments.filter(
-                        (t: Tournament) => t.status === 'published' || t.status === 'finished'
-                    ).length;
-                    const publicCount = allTournaments.filter(
-                        (t: Tournament) => t.is_public && t.status === 'published'
-                    ).length;
-
-                    setTournamentStats({
-                        managed,
-                        entered,
-                        public: publicCount,
-                    });
-                }
-
-                // 審判割り当て試合の処理
-                if (matchesResult?.data) {
-                    const matches = matchesResult.data || [];
-                    // 進行中・待機中の試合のみ表示
-                    const activeMatches = matches.filter(
-                        (m: Match) => m.status === 'inprogress' || m.status === 'pending'
-                    );
-                    setAssignedMatches(activeMatches.slice(0, 5));
-                }
-            } catch (error) {
-                console.error('Failed to fetch data:', error);
-            } finally {
-                setLoadingState(false);
-            }
-        };
-
-        fetchData();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isAuthenticated]);
+    useEffect(() => {
+        if (needsReconsent) {
+            router.push('/consent');
+        }
+    }, [needsReconsent, router]);
 
     if (!isAuthenticated) {
         return (
@@ -156,7 +58,6 @@ export default function DashboardPage() {
         );
     }
 
-    // スケルトンカードコンポーネント
     const SkeletonStatCard = () => (
         <div className="p-6 bg-slate-800/50 rounded-xl border border-slate-700/50 animate-pulse">
             <div className="flex items-center justify-between">
@@ -169,13 +70,14 @@ export default function DashboardPage() {
         </div>
     );
 
+    const inProgressCount = assignedMatches.filter((m) => m.status === 'inprogress').length;
+    const pendingCount = assignedMatches.filter((m) => m.status === 'pending').length;
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
             <AppHeader />
 
-            {/* Main Content */}
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                {/* Welcome Section */}
                 <div className="mb-8">
                     <h2 className="text-3xl font-bold text-white mb-2">
                         こんにちは、{user?.display_name || 'ユーザー'}さん
@@ -183,10 +85,7 @@ export default function DashboardPage() {
                     <p className="text-slate-400">ダッシュボードへようこそ</p>
                 </div>
 
-                {/* 次にやること（パーソナライズ） */}
-                {!loading && (() => {
-                    const inProgressCount = assignedMatches.filter((m) => m.status === 'inprogress').length;
-                    const pendingCount = assignedMatches.filter((m) => m.status === 'pending').length;
+                {!isLoading && (() => {
                     if (inProgressCount > 0) {
                         return (
                             <Link
@@ -242,7 +141,6 @@ export default function DashboardPage() {
                     return null;
                 })()}
 
-                {/* 審判割り当て試合（最優先表示） */}
                 {assignedMatches.length > 0 && (
                     <div className="mb-8">
                         <div className="bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50 p-6">
@@ -277,20 +175,25 @@ export default function DashboardPage() {
                                                             <p className="text-white font-medium truncate">
                                                                 {match.tournaments?.name || '大会'}
                                                             </p>
-                                                            <span className="text-slate-400 text-sm shrink-0">{match.round_name}</span>
+                                                            <span className="text-slate-400 text-sm shrink-0">
+                                                                {match.round_name}
+                                                            </span>
                                                         </div>
                                                         {match.match_pairs && match.match_pairs.length > 0 && (
                                                             <p className="text-slate-300 text-sm truncate">
                                                                 {match.match_pairs[0]?.teams?.name || 'チームA'} vs{' '}
-                                                                {match.match_pairs.length >= 2 ? (match.match_pairs[1]?.teams?.name || 'チームB') : 'チームB'}
+                                                                {match.match_pairs.length >= 2
+                                                                    ? (match.match_pairs[1]?.teams?.name || 'チームB')
+                                                                    : 'チームB'}
                                                             </p>
                                                         )}
                                                     </div>
                                                     <span
-                                                        className={`px-3 py-1 text-xs rounded shrink-0 ${match.status === 'inprogress'
-                                                            ? 'bg-blue-500/20 text-blue-400'
-                                                            : 'bg-slate-500/20 text-slate-400'
-                                                            }`}
+                                                        className={`px-3 py-1 text-xs rounded shrink-0 ${
+                                                            match.status === 'inprogress'
+                                                                ? 'bg-blue-500/20 text-blue-400'
+                                                                : 'bg-slate-500/20 text-slate-400'
+                                                        }`}
                                                     >
                                                         {match.status === 'inprogress' ? (
                                                             <>
@@ -321,9 +224,8 @@ export default function DashboardPage() {
                     </div>
                 )}
 
-                {/* Tournament Summary Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    {loading ? (
+                    {isLoading ? (
                         <>
                             <SkeletonStatCard />
                             <SkeletonStatCard />
@@ -362,7 +264,6 @@ export default function DashboardPage() {
                     )}
                 </div>
 
-                {/* Quick Actions */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                     <Link
                         href="/tournaments/new"
@@ -410,7 +311,6 @@ export default function DashboardPage() {
                     </Link>
                 </div>
 
-                {/* Recent Tournaments */}
                 <div className="bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50 p-6">
                     <div className="flex items-center justify-between mb-6">
                         <h3 className="text-xl font-semibold text-white">最近の大会</h3>
@@ -423,7 +323,7 @@ export default function DashboardPage() {
                         </Link>
                     </div>
 
-                    {loading ? (
+                    {isLoading ? (
                         <SkeletonList count={5} />
                     ) : tournaments.length === 0 ? (
                         <div className="text-center py-8">
@@ -449,7 +349,6 @@ export default function DashboardPage() {
     );
 }
 
-// TournamentCardコンポーネントをメモ化
 interface TournamentCardProps {
     tournament: Tournament;
 }
@@ -468,18 +367,19 @@ const TournamentCard = memo(({ tournament }: TournamentCardProps) => {
                     </p>
                 </div>
                 <span
-                    className={`px-3 py-1 text-xs font-medium rounded-full ${tournament.status === 'published'
-                        ? 'bg-green-500/20 text-green-400'
-                        : tournament.status === 'finished'
+                    className={`px-3 py-1 text-xs font-medium rounded-full ${
+                        tournament.status === 'published'
+                            ? 'bg-green-500/20 text-green-400'
+                            : tournament.status === 'finished'
                             ? 'bg-slate-500/20 text-slate-400'
                             : 'bg-yellow-500/20 text-yellow-400'
-                        }`}
+                    }`}
                 >
                     {tournament.status === 'published'
                         ? '公開中'
                         : tournament.status === 'finished'
-                            ? '終了'
-                            : '下書き'}
+                        ? '終了'
+                        : '下書き'}
                 </span>
             </div>
         </Link>

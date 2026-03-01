@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/components/AuthProvider";
 import ToastContainer from "@/features/toast/components/ToastContainer";
 import ConfirmModalGlobal from "@/features/confirm/components/ConfirmModalGlobal";
+import { QueryProvider } from "@/providers/QueryProvider";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -31,11 +32,13 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <AuthProvider>
-          {children}
-          <ToastContainer />
-          <ConfirmModalGlobal />
-        </AuthProvider>
+        <QueryProvider>
+          <AuthProvider>
+            {children}
+            <ToastContainer />
+            <ConfirmModalGlobal />
+          </AuthProvider>
+        </QueryProvider>
       </body>
     </html>
   );

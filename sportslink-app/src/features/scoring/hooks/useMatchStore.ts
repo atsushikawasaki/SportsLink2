@@ -32,6 +32,7 @@ interface MatchStoreState extends MatchState {
     setConnectionState: (state: 'CONNECTED' | 'DISCONNECTED' | 'RECONNECTING') => void;
     setSyncing: (syncing: boolean) => void;
     setConflict: (hasConflict: boolean) => void;
+    clearConflict: () => void;
     resetMatch: () => void;
 }
 
@@ -68,5 +69,6 @@ export const useMatchStore = create<MatchStoreState>((set) => ({
     setConnectionState: (connectionState) => set({ connectionState }),
     setSyncing: (isSyncing) => set({ isSyncing }),
     setConflict: (hasConflict) => set({ hasConflict }),
+    clearConflict: () => set({ hasConflict: false }),
     resetMatch: () => set(initialMatchState),
 }));

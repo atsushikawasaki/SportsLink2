@@ -217,8 +217,9 @@ export default function ResultsPage() {
             // CSV形式に変換
             const csvHeader = 'ラウンド,試合番号,チームA,チームB,スコアA,スコアB,最終スコア\n';
             const csvRows = (data.matches ?? []).map((match: Match) => {
-                const teamA = match.match_pairs?.length > 0 ? (match.match_pairs[0]?.teams?.name || 'N/A') : 'N/A';
-                const teamB = match.match_pairs?.length >= 2 ? (match.match_pairs[1]?.teams?.name || 'N/A') : 'N/A';
+                const pairs = match.match_pairs ?? [];
+                const teamA = pairs.length > 0 ? (pairs[0]?.teams?.name || 'N/A') : 'N/A';
+                const teamB = pairs.length >= 2 ? (pairs[1]?.teams?.name || 'N/A') : 'N/A';
                 const scores = Array.isArray(match.match_scores) && match.match_scores.length > 0 ? match.match_scores[0] : match.match_scores;
                 return `${match.round_name},${match.match_number},${teamA},${teamB},${scores?.game_count_a || 0},${scores?.game_count_b || 0},${scores?.final_score || ''}\n`;
             }).join('') || '';

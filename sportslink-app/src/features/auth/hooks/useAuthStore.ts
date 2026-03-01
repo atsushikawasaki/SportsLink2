@@ -23,7 +23,7 @@ export const useAuthStore = create<AuthState>()(
         (set) => ({
             user: null,
             isAuthenticated: false,
-            isLoading: true,
+            isLoading: false,
             accessToken: null,
             hasHydrated: false,
             setUser: (user) => set({ user, isAuthenticated: !!user }),
@@ -44,9 +44,15 @@ export const useAuthStore = create<AuthState>()(
         }),
         {
             name: 'auth-storage',
-            partialize: (state) => ({ user: state.user, accessToken: state.accessToken }),
+            partialize: (state) => ({ user: state.user }),
             onRehydrateStorage: () => (state) => {
-                state?.setHasHydrated(true);
+                if (state) {
+                    state.setHasHydrated(true);
+                    // localStorageにユーザー情報があれば即座に認証済み扱いにする
+                    if (state.user) {
+                        state.setUser(state.user);
+                    }
+                }
             },
         }
     )

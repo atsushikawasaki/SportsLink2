@@ -6,7 +6,9 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Trophy, Play, Eye } from 'lucide-react';
 import AppHeader from '@/components/AppHeader';
+import EmptyState from '@/components/ui/EmptyState';
 import Breadcrumbs from '@/components/Breadcrumbs';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 interface Match {
     id: string;
@@ -90,23 +92,32 @@ export default function AssignedMatchesPage() {
                 {/* Matches List */}
                 {loading ? (
                     <div className="flex justify-center py-12">
-                        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-400"></div>
+                        <LoadingSpinner />
                     </div>
                 ) : error ? (
                     <div className="text-center py-12">
                         <p className="text-red-400 mb-4">{error}</p>
                         <button
                             onClick={fetchMatches}
-                            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                            className="px-4 py-3 min-h-[48px] bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900"
                         >
                             再試行
                         </button>
                     </div>
                 ) : matches.length === 0 ? (
-                    <div className="text-center py-12">
-                        <Trophy className="w-16 h-16 text-slate-500 mx-auto mb-4" />
-                        <p className="text-slate-400 text-lg">担当試合がありません</p>
-                    </div>
+                    <EmptyState
+                        icon={Trophy}
+                        title="担当試合がありません"
+                        description="大会管理者に担当割り当てを依頼するか、大会一覧で役割を確認してください"
+                        action={
+                            <Link
+                                href="/tournaments"
+                                className="inline-block px-6 py-3 min-h-[48px] flex items-center justify-center bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900"
+                            >
+                                大会一覧へ
+                            </Link>
+                        }
+                    />
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {matches.map((match) => (
@@ -123,7 +134,7 @@ export default function AssignedMatchesPage() {
                                         <p className="text-slate-500 text-xs">試合 #{match.match_number}</p>
                                     </div>
                                     <span
-                                        className={`px-3 py-1 text-xs rounded ${
+                                        className={`px-3 py-1 text-xs rounded-lg ${
                                             match.status === 'finished'
                                                 ? 'bg-green-500/20 text-green-400'
                                                 : match.status === 'inprogress'
@@ -145,7 +156,7 @@ export default function AssignedMatchesPage() {
                                         </div>
                                         <div className="text-slate-400 text-sm">vs</div>
                                         <div className="text-white">
-                                            {match.match_pairs[1]?.teams?.name || 'チームB'}
+                                            {match.match_pairs.length >= 2 ? (match.match_pairs[1]?.teams?.name || 'チームB') : 'チームB'}
                                         </div>
                                     </div>
                                 )}

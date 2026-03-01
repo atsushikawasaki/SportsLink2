@@ -1,25 +1,43 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { loginSchema, type LoginInput } from '@/features/auth/types/schemas';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 export default function LoginPage() {
+    return (
+        <Suspense
+            fallback={
+                <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+                    <div className="text-center">
+                        <p className="text-slate-400">読み込み中...</p>
+                    </div>
+                </div>
+            }
+        >
+            <LoginForm />
+        </Suspense>
+    );
+}
+
+function LoginForm() {
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const { setUser, setAccessToken, isAuthenticated, isLoading: authLoading } = useAuthStore();
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const returnUrl = searchParams.get('returnUrl');
 
-    // 既にログインしている場合はダッシュボードにリダイレクト
+    // 既にログインしている場合はリダイレクト
     useEffect(() => {
         if (!authLoading && isAuthenticated) {
-            router.push('/dashboard');
+            router.push(returnUrl || '/dashboard');
         }
-    }, [isAuthenticated, authLoading, router]);
+    }, [isAuthenticated, authLoading, router, returnUrl]);
 
     const {
         register,
@@ -92,7 +110,7 @@ export default function LoginPage() {
             if (consentRes.ok && consentData.needs_reconsent) {
                 router.push('/consent');
             } else {
-                router.push('/dashboard');
+                router.push(returnUrl || '/dashboard');
             }
         } catch {
             setError('ログインに失敗しました');
@@ -107,7 +125,7 @@ export default function LoginPage() {
                 <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-700/50 p-8">
                     <div className="text-center mb-8">
                         <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-                            Sport Link
+                            SportsLink
                         </h1>
                         <p className="text-slate-400 mt-2">ソフトテニス大会運営システム</p>
                     </div>

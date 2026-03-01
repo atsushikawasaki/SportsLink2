@@ -1,11 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { toast } from '@/lib/toast';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Save } from 'lucide-react';
 import AppHeader from '@/components/AppHeader';
 import Breadcrumbs from '@/components/Breadcrumbs';
+import TournamentSubNav from '@/components/TournamentSubNav';
 
 interface User {
     id: string;
@@ -154,10 +157,10 @@ export default function RolesPage() {
             });
 
             await Promise.all(promises);
-            alert('権限を保存しました');
+            toast.success('権限を保存しました');
             fetchData();
-        } catch (err) {
-            alert('権限の保存に失敗しました');
+        } catch {
+            toast.error('権限の保存に失敗しました');
         } finally {
             setIsSaving(false);
         }
@@ -166,7 +169,7 @@ export default function RolesPage() {
     if (loading) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-yellow-400"></div>
+                <LoadingSpinner />
             </div>
         );
     }
@@ -190,6 +193,14 @@ export default function RolesPage() {
                                 権限管理
                             </h1>
                             {tournament && <p className="text-slate-400 mt-2">{tournament.name}</p>}
+                            <div className="mt-3 flex flex-wrap gap-6 text-sm text-slate-500">
+                                <span>
+                                    <strong className="text-slate-400">大会運営者:</strong> エントリー・ドロー・試合割当などの大会運営全般を編集できます
+                                </span>
+                                <span>
+                                    <strong className="text-slate-400">審判:</strong> 担当試合のスコア入力・ペア提出ができます
+                                </span>
+                            </div>
                         </div>
                         <button
                             onClick={handleSave}
@@ -201,6 +212,8 @@ export default function RolesPage() {
                         </button>
                     </div>
                 </div>
+
+                <TournamentSubNav tournamentId={tournamentId} />
 
                 {/* Users List */}
                 <div className="space-y-4">

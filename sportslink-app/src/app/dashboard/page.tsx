@@ -4,9 +4,10 @@ import { useEffect, useState, memo, useRef } from 'react';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Trophy, Users, Calendar, Plus, ArrowRight, Play, Clock, Award } from 'lucide-react';
+import { Trophy, Users, Calendar, Plus, ArrowRight, Play, Clock, Award, ChevronRight } from 'lucide-react';
 import AppHeader from '@/components/AppHeader';
 import { SkeletonCard, SkeletonList } from '@/components/Skeleton';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 interface Tournament {
     id: string;
@@ -44,80 +45,54 @@ export default function DashboardPage() {
         public: 0,
     });
 
-    // 初回フェッチ済みフラグ
-    const hasFetched = useRef(false);
-    // 最新のuser.idを参照するためのref
     const userIdRef = useRef(user?.id);
     userIdRef.current = user?.id;
 
     useEffect(() => {
-        // 認証チェック
         if (!isAuthenticated) {
             router.push('/login');
             return;
         }
-
-        // 既にフェッチ済みの場合はスキップ
-        if (hasFetched.current) {
-            setAuthLoading(false);
-            return;
-        }
-        hasFetched.current = true;
-
-        // AuthLoadingを即座にfalseにしてUIを表示
         setAuthLoading(false);
+
+        const FETCH_TIMEOUT_MS = 10_000;
 
         const fetchData = async () => {
             try {
-                // 全てのAPIリクエストを並列で実行
+                // 個別のAbortControllerで各リクエストにタイムアウトを設定
+                const createFetchWithTimeout = (url: string, defaultValue: any) => {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+                    return fetch(url, { signal: controller.signal })
+                        .then(async (res) => {
+                            clearTimeout(timeoutId);
+                            if (!res.ok) {
+                                const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
+                                console.error(`Failed to fetch ${url}:`, errorData);
+                                return defaultValue;
+                            }
+                            return res.json();
+                        })
+                        .catch((err) => {
+                            clearTimeout(timeoutId);
+                            if (err.name === 'AbortError') {
+                                console.warn(`Fetch timed out: ${url}`);
+                            } else {
+                                console.error(`Network error fetching ${url}:`, err);
+                            }
+                            return defaultValue;
+                        });
+                };
+
                 const promises: Promise<any>[] = [
-                    // 大会一覧取得
-                    fetch('/api/tournaments?limit=5')
-                        .then(async (res) => {
-                            if (!res.ok) {
-                                const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
-                                console.error('Failed to fetch tournaments:', errorData);
-                                return { data: [], error: errorData.error };
-                            }
-                            return res.json();
-                        })
-                        .catch((err) => {
-                            console.error('Network error fetching tournaments:', err);
-                            return { data: [], error: 'Network error' };
-                        }),
-                    // 規約同意チェック
-                    fetch('/api/auth/consent/check')
-                        .then(async (res) => {
-                            if (!res.ok) {
-                                const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
-                                console.error('Failed to check consent:', errorData);
-                                return { needs_reconsent: false, error: errorData.error };
-                            }
-                            return res.json();
-                        })
-                        .catch((err) => {
-                            console.error('Network error checking consent:', err);
-                            return { needs_reconsent: false, error: 'Network error' };
-                        }),
+                    createFetchWithTimeout('/api/tournaments?limit=5', { data: [] }),
+                    createFetchWithTimeout('/api/auth/consent/check', { needs_reconsent: false }),
                 ];
 
-                // 審判割り当て試合取得（ユーザーIDがある場合のみ）
                 const userId = userIdRef.current;
                 if (userId) {
                     promises.push(
-                        fetch(`/api/matches/umpire/${userId}`)
-                            .then(async (res) => {
-                                if (!res.ok) {
-                                    const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
-                                    console.error('Failed to fetch umpire matches:', errorData);
-                                    return { data: [], error: errorData.error };
-                                }
-                                return res.json();
-                            })
-                            .catch((err) => {
-                                console.error('Network error fetching umpire matches:', err);
-                                return { data: [], error: 'Network error' };
-                            })
+                        createFetchWithTimeout(`/api/matches/umpire/${userId}`, { data: [] })
                     );
                 }
 
@@ -171,7 +146,14 @@ export default function DashboardPage() {
     }, [isAuthenticated]);
 
     if (!isAuthenticated) {
-        return null;
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
+                <div className="text-center">
+                    <LoadingSpinner />
+                    <p className="mt-4 text-slate-400">認証を確認しています...</p>
+                </div>
+            </div>
+        );
     }
 
     // スケルトンカードコンポーネント
@@ -200,6 +182,144 @@ export default function DashboardPage() {
                     </h2>
                     <p className="text-slate-400">ダッシュボードへようこそ</p>
                 </div>
+
+                {/* 次にやること（パーソナライズ） */}
+                {!loading && (() => {
+                    const inProgressCount = assignedMatches.filter((m) => m.status === 'inprogress').length;
+                    const pendingCount = assignedMatches.filter((m) => m.status === 'pending').length;
+                    if (inProgressCount > 0) {
+                        return (
+                            <Link
+                                href="/assigned-matches"
+                                className="block mb-8 p-4 rounded-xl border border-blue-500/50 bg-blue-500/10 hover:bg-blue-500/20 transition-colors"
+                            >
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-blue-400 font-medium">次にやること</p>
+                                        <p className="text-white mt-1">
+                                            進行中の試合が{inProgressCount}件あります。スコア入力を続けましょう
+                                        </p>
+                                    </div>
+                                    <ChevronRight className="w-5 h-5 text-blue-400 shrink-0" />
+                                </div>
+                            </Link>
+                        );
+                    }
+                    if (pendingCount > 0) {
+                        return (
+                            <Link
+                                href="/assigned-matches"
+                                className="block mb-8 p-4 rounded-xl border border-cyan-500/50 bg-cyan-500/10 hover:bg-cyan-500/20 transition-colors"
+                            >
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-cyan-400 font-medium">次にやること</p>
+                                        <p className="text-white mt-1">
+                                            {pendingCount}試合のスコア入力が可能です
+                                        </p>
+                                    </div>
+                                    <ChevronRight className="w-5 h-5 text-cyan-400 shrink-0" />
+                                </div>
+                            </Link>
+                        );
+                    }
+                    if (tournaments.length === 0) {
+                        return (
+                            <Link
+                                href="/tournaments/new"
+                                className="block mb-8 p-4 rounded-xl border border-amber-500/50 bg-amber-500/10 hover:bg-amber-500/20 transition-colors"
+                            >
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-amber-400 font-medium">次にやること</p>
+                                        <p className="text-white mt-1">最初の大会を作成しましょう</p>
+                                    </div>
+                                    <ChevronRight className="w-5 h-5 text-amber-400 shrink-0" />
+                                </div>
+                            </Link>
+                        );
+                    }
+                    return null;
+                })()}
+
+                {/* 審判割り当て試合（最優先表示） */}
+                {assignedMatches.length > 0 && (
+                    <div className="mb-8">
+                        <div className="bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50 p-6">
+                            <div className="flex items-center justify-between mb-6">
+                                <h3 className="text-xl font-semibold text-white">審判割り当て試合</h3>
+                                <Link
+                                    href="/assigned-matches"
+                                    className="flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors"
+                                >
+                                    すべて見る
+                                    <ArrowRight className="w-4 h-4" />
+                                </Link>
+                            </div>
+                            <div className="space-y-3">
+                                {assignedMatches
+                                    .sort((a, b) => {
+                                        const order = { inprogress: 0, pending: 1, finished: 2 };
+                                        return (order[a.status] ?? 2) - (order[b.status] ?? 2);
+                                    })
+                                    .map((match) => (
+                                        <div
+                                            key={match.id}
+                                            className="flex items-center gap-3 p-4 bg-slate-700/30 rounded-lg"
+                                        >
+                                            <Link
+                                                href={`/matches/${match.id}`}
+                                                className="flex-1 min-w-0 hover:opacity-90 transition-opacity"
+                                            >
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <p className="text-white font-medium truncate">
+                                                                {match.tournaments?.name || '大会'}
+                                                            </p>
+                                                            <span className="text-slate-400 text-sm shrink-0">{match.round_name}</span>
+                                                        </div>
+                                                        {match.match_pairs && match.match_pairs.length > 0 && (
+                                                            <p className="text-slate-300 text-sm truncate">
+                                                                {match.match_pairs[0]?.teams?.name || 'チームA'} vs{' '}
+                                                                {match.match_pairs.length >= 2 ? (match.match_pairs[1]?.teams?.name || 'チームB') : 'チームB'}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                    <span
+                                                        className={`px-3 py-1 text-xs rounded shrink-0 ${match.status === 'inprogress'
+                                                            ? 'bg-blue-500/20 text-blue-400'
+                                                            : 'bg-slate-500/20 text-slate-400'
+                                                            }`}
+                                                    >
+                                                        {match.status === 'inprogress' ? (
+                                                            <>
+                                                                <Play className="w-3 h-3 inline mr-1" />
+                                                                進行中
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Clock className="w-3 h-3 inline mr-1" />
+                                                                待機中
+                                                            </>
+                                                        )}
+                                                    </span>
+                                                </div>
+                                            </Link>
+                                            {(match.status === 'inprogress' || match.status === 'pending') && (
+                                                <Link
+                                                    href={`/scoring/${match.id}`}
+                                                    className="shrink-0 px-4 py-2 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 transition-colors"
+                                                >
+                                                    {match.status === 'inprogress' ? 'スコア入力' : '試合開始'}
+                                                </Link>
+                                            )}
+                                        </div>
+                                    ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Tournament Summary Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -241,68 +361,6 @@ export default function DashboardPage() {
                         </>
                     )}
                 </div>
-
-                {/* Assigned Matches Section */}
-                {assignedMatches.length > 0 && (
-                    <div className="bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50 p-6 mb-8">
-                        <div className="flex items-center justify-between mb-6">
-                            <h3 className="text-xl font-semibold text-white">審判割り当て試合</h3>
-                            <Link
-                                href="/assigned-matches"
-                                className="flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors"
-                            >
-                                すべて見る
-                                <ArrowRight className="w-4 h-4" />
-                            </Link>
-                        </div>
-                        <div className="space-y-3">
-                            {assignedMatches.map((match) => (
-                                <Link
-                                    key={match.id}
-                                    href={`/matches/${match.id}`}
-                                    className="block p-4 bg-slate-700/30 rounded-lg hover:bg-slate-700/50 transition-colors"
-                                >
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <p className="text-white font-medium">
-                                                    {match.tournaments?.name || '大会'}
-                                                </p>
-                                                <span className="text-slate-400 text-sm">{match.round_name}</span>
-                                            </div>
-                                            {match.match_pairs && match.match_pairs.length > 0 && (
-                                                <p className="text-slate-300 text-sm">
-                                                    {match.match_pairs[0]?.teams?.name || 'チームA'} vs{' '}
-                                                    {match.match_pairs[1]?.teams?.name || 'チームB'}
-                                                </p>
-                                            )}
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                            <span
-                                                className={`px-3 py-1 text-xs rounded ${match.status === 'inprogress'
-                                                    ? 'bg-blue-500/20 text-blue-400'
-                                                    : 'bg-slate-500/20 text-slate-400'
-                                                    }`}
-                                            >
-                                                {match.status === 'inprogress' ? (
-                                                    <>
-                                                        <Play className="w-3 h-3 inline mr-1" />
-                                                        進行中
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <Clock className="w-3 h-3 inline mr-1" />
-                                                        待機中
-                                                    </>
-                                                )}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </Link>
-                            ))}
-                        </div>
-                    </div>
-                )}
 
                 {/* Quick Actions */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">

@@ -1,11 +1,14 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { confirmAsync } from '@/lib/toast';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useParams, useRouter } from 'next/navigation';
 import { useMatchStore } from '@/features/scoring/hooks/useMatchStore';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { useNotificationStore } from '@/features/notifications/hooks/useNotificationStore';
-import { ArrowLeft, Undo2, Wifi, WifiOff, Pause, Play } from 'lucide-react';
+import { ArrowLeft, Undo2, Wifi, WifiOff, Pause, Play, AlertTriangle } from 'lucide-react';
+import Modal from '@/components/ui/Modal';
 import { v4 as uuidv4 } from 'uuid';
 import { createClient } from '@/lib/supabase/client';
 
@@ -66,6 +69,12 @@ export default function ScoringPage() {
 
     const { user } = useAuthStore();
     const { getAuthKey, addNotification } = useNotificationStore();
+    const supabase = useMemo(() => createClient(), []);
+    // Refs to avoid recreating Realtime subscriptions on score changes
+    const currentScoreARef = useRef(currentScoreA);
+    const currentScoreBRef = useRef(currentScoreB);
+    currentScoreARef.current = currentScoreA;
+    currentScoreBRef.current = currentScoreB;
     const [match, setMatch] = useState<Match | null>(null);
     const [tournament, setTournament] = useState<Tournament | null>(null);
     const [loading, setLoading] = useState(true);
@@ -73,6 +82,7 @@ export default function ScoringPage() {
     const [tokenInput, setTokenInput] = useState('');
     const [tokenError, setTokenError] = useState<string | null>(null);
     const [isPaused, setIsPaused] = useState(false);
+    const [nextMatchId, setNextMatchId] = useState<string | null>(null);
     const [isVerified, setIsVerified] = useState(false);
 
     const fetchMatch = useCallback(async () => {
@@ -128,8 +138,6 @@ export default function ScoringPage() {
     useEffect(() => {
         if (!matchId) return;
 
-        const supabase = createClient();
-
         // スコア変更を購読
         const scoreChannel = supabase
             .channel(`match:${matchId}:score`)
@@ -142,13 +150,13 @@ export default function ScoringPage() {
                     filter: `match_id=eq.${matchId}`,
                 },
                 (payload) => {
-                    // スコア更新を反映
+                    // スコア更新を反映（refで最新値を参照）
                     if (payload.new) {
                         updateScore(
                             payload.new.game_count_a || 0,
                             payload.new.game_count_b || 0,
-                            currentScoreA,
-                            currentScoreB
+                            currentScoreARef.current,
+                            currentScoreBRef.current
                         );
                     }
                 }
@@ -185,7 +193,7 @@ export default function ScoringPage() {
             supabase.removeChannel(scoreChannel);
             supabase.removeChannel(matchChannel);
         };
-    }, [matchId, updateScore, setMatchState, currentScoreA, currentScoreB]);
+    }, [matchId, supabase, updateScore, setMatchState]);
 
     const handleAddPoint = async (pointType: 'A_score' | 'B_score') => {
         if (matchStatus !== 'inprogress' || isPaused) return;
@@ -222,8 +230,8 @@ export default function ScoringPage() {
                     updateScore(
                         result.match_scores.game_count_a || 0,
                         result.match_scores.game_count_b || 0,
-                        currentScoreA,
-                        currentScoreB
+                        currentScoreARef.current,
+                        currentScoreBRef.current
                     );
                     // Realtimeで更新されるため、fetchMatch()は不要
                 } else {
@@ -337,7 +345,8 @@ export default function ScoringPage() {
     };
 
     const handleFinishMatch = async () => {
-        if (!confirm('試合を終了しますか？')) return;
+        const ok = await confirmAsync({ title: '確認', message: '試合を終了しますか？', confirmLabel: '終了' });
+        if (!ok) return;
 
         try {
             const response = await fetch(`/api/scoring/matches/${matchId}/finish`, {
@@ -350,7 +359,9 @@ export default function ScoringPage() {
                     // 敗者を判定（スコアから）
                     const scoreA = match.match_scores?.[0]?.game_count_a || 0;
                     const scoreB = match.match_scores?.[0]?.game_count_b || 0;
-                    const loserEntry = scoreA < scoreB ? match.match_pairs?.[0] : match.match_pairs?.[1];
+                    const loserEntry = match.match_pairs && match.match_pairs.length >= 2
+                        ? (scoreA < scoreB ? match.match_pairs[0] : match.match_pairs[1])
+                        : null;
 
                     // 次試合の審判権限を有効化（実際の実装では、次試合のIDを取得して処理）
                     // ここでは通知のみ送信
@@ -367,7 +378,23 @@ export default function ScoringPage() {
                     }
                 }
 
-                router.push('/dashboard');
+                // Fetch next assigned match
+                try {
+                    const nextRes = await fetch('/api/scoring/live');
+                    if (nextRes.ok) {
+                        const nextData = await nextRes.json();
+                        const nextMatch = (nextData.data || []).find(
+                            (m: { id: string; status: string }) => m.id !== matchId && (m.status === 'pending' || m.status === 'inprogress')
+                        );
+                        if (nextMatch) {
+                            setNextMatchId(nextMatch.id);
+                            return; // Don't redirect, show the finish screen with next match option
+                        }
+                    }
+                } catch {
+                    // Ignore - just go to dashboard
+                }
+                router.push('/assigned-matches');
             }
         } catch (error) {
             console.error('Failed to finish match:', error);
@@ -377,7 +404,7 @@ export default function ScoringPage() {
     if (loading) {
         return (
             <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-400"></div>
+                <LoadingSpinner />
             </div>
         );
     }
@@ -411,6 +438,14 @@ export default function ScoringPage() {
 
             {/* Match Info */}
             <div className="max-w-4xl mx-auto px-4 py-4">
+                {/* Disconnected Warning */}
+                {connectionState !== 'CONNECTED' && (
+                    <div className="mb-4 p-3 bg-red-500/20 border border-red-500/40 rounded-xl flex items-center gap-3">
+                        <WifiOff className="w-5 h-5 text-red-400 shrink-0" />
+                        <p className="text-red-400 text-sm font-medium">接続が切断されています。データはローカルに保存され、再接続時に同期されます。</p>
+                    </div>
+                )}
+
                 <div className="text-center mb-8">
                     <h1 className="text-xl font-semibold text-white">{match?.round_name}</h1>
                     <p className="text-slate-400">コート {match?.court_number || '-'}</p>
@@ -441,50 +476,53 @@ export default function ScoringPage() {
                 </div>
 
                 {/* Token Verification Modal */}
-                {showTokenModal && (
-                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                        <div className="bg-slate-800 rounded-xl p-6 max-w-md w-full mx-4">
-                            <h2 className="text-xl font-semibold text-white mb-4">認証キー入力</h2>
-                            <p className="text-slate-400 text-sm mb-4">
-                                通知センターから認証キーを確認してください
-                            </p>
-                            <input
-                                type="text"
-                                value={tokenInput}
-                                onChange={(e) => {
-                                    const value = e.target.value.replace(/\D/g, '').slice(0, 4);
-                                    setTokenInput(value);
-                                    setTokenError(null);
-                                }}
-                                placeholder="4桁の認証キー"
-                                className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white text-center text-2xl tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
-                                maxLength={4}
-                                autoFocus
-                            />
-                            {tokenError && (
-                                <p className="text-red-400 text-sm mb-4">{tokenError}</p>
-                            )}
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={handleVerifyToken}
-                                    className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-                                >
-                                    確認
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setShowTokenModal(false);
-                                        setTokenInput('');
-                                        setTokenError(null);
-                                    }}
-                                    className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors"
-                                >
-                                    キャンセル
-                                </button>
-                            </div>
-                        </div>
+                <Modal
+                    isOpen={showTokenModal}
+                    onClose={() => {
+                        setShowTokenModal(false);
+                        setTokenInput('');
+                        setTokenError(null);
+                    }}
+                    title="認証キー入力"
+                >
+                    <p className="text-slate-400 text-sm mb-4">
+                        敗者審判モードでは、試合開始時に当日の認証キーが必要です。通知センターまたはエントリー一覧で確認した4桁のキーを入力してください。
+                    </p>
+                    <input
+                        type="text"
+                        value={tokenInput}
+                        onChange={(e) => {
+                            const value = e.target.value.replace(/\D/g, '').slice(0, 4);
+                            setTokenInput(value);
+                            setTokenError(null);
+                        }}
+                        placeholder="4桁の認証キー"
+                        className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white text-center text-2xl tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+                        maxLength={4}
+                        autoFocus
+                    />
+                    {tokenError && (
+                        <p className="text-red-400 text-sm mb-4">{tokenError}</p>
+                    )}
+                    <div className="flex gap-2">
+                        <button
+                            onClick={handleVerifyToken}
+                            className="flex-1 px-4 py-3 min-h-[48px] bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-semibold"
+                        >
+                            確認
+                        </button>
+                        <button
+                            onClick={() => {
+                                setShowTokenModal(false);
+                                setTokenInput('');
+                                setTokenError(null);
+                            }}
+                            className="px-4 py-3 min-h-[48px] bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors"
+                        >
+                            キャンセル
+                        </button>
                     </div>
-                )}
+                </Modal>
 
                 {/* Controls */}
                 {matchStatus === 'pending' && (
@@ -498,21 +536,38 @@ export default function ScoringPage() {
 
                 {matchStatus === 'inprogress' && (
                     <>
+                        {/* Pause Banner */}
+                        {isPaused && (
+                            <div className="mb-6 p-4 bg-yellow-500/20 border border-yellow-500/40 rounded-xl flex items-center gap-3">
+                                <AlertTriangle className="w-6 h-6 text-yellow-400 shrink-0" />
+                                <div>
+                                    <p className="text-yellow-400 font-semibold">試合一時停止中</p>
+                                    <p className="text-yellow-400/70 text-sm">再開ボタンを押すとスコア入力を続けられます</p>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Point Buttons - Large for mobile */}
                         <div className="grid grid-cols-2 gap-4 mb-6">
                             <button
                                 onClick={() => handleAddPoint('A_score')}
                                 disabled={isPaused}
-                                className="py-16 bg-gradient-to-br from-blue-500 to-blue-600 text-white text-3xl font-bold rounded-xl shadow-lg active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="py-16 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl shadow-lg active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                A +1
+                                <span className="block text-sm font-medium mb-1 opacity-80 truncate px-2">
+                                    {match?.match_pairs?.[0]?.teams?.name || 'チームA'}
+                                </span>
+                                <span className="block text-3xl font-bold">+1</span>
                             </button>
                             <button
                                 onClick={() => handleAddPoint('B_score')}
                                 disabled={isPaused}
-                                className="py-16 bg-gradient-to-br from-cyan-500 to-cyan-600 text-white text-3xl font-bold rounded-xl shadow-lg active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="py-16 bg-gradient-to-br from-cyan-500 to-cyan-600 text-white rounded-xl shadow-lg active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                B +1
+                                <span className="block text-sm font-medium mb-1 opacity-80 truncate px-2">
+                                    {match?.match_pairs && match.match_pairs.length >= 2 ? (match.match_pairs[1]?.teams?.name || 'チームB') : 'チームB'}
+                                </span>
+                                <span className="block text-3xl font-bold">+1</span>
                             </button>
                         </div>
 
@@ -554,14 +609,30 @@ export default function ScoringPage() {
                 )}
 
                 {matchStatus === 'finished' && (
-                    <div className="text-center py-8">
+                    <div className="text-center py-8 space-y-4">
                         <p className="text-2xl text-green-400 mb-4">試合終了</p>
-                        <button
-                            onClick={() => router.push('/dashboard')}
-                            className="px-8 py-3 bg-slate-700 text-white rounded-xl hover:bg-slate-600 transition-colors"
-                        >
-                            ダッシュボードへ戻る
-                        </button>
+                        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                            {nextMatchId && (
+                                <button
+                                    onClick={() => router.push(`/scoring/${nextMatchId}`)}
+                                    className="px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-semibold rounded-xl hover:from-blue-600 hover:to-cyan-600 transition-colors"
+                                >
+                                    次の担当試合へ
+                                </button>
+                            )}
+                            <button
+                                onClick={() => router.push('/assigned-matches')}
+                                className="px-6 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors"
+                            >
+                                担当試合一覧へ
+                            </button>
+                            <button
+                                onClick={() => router.push('/dashboard')}
+                                className="px-6 py-3 bg-slate-700 text-white rounded-xl hover:bg-slate-600 transition-colors"
+                            >
+                                ダッシュボードへ戻る
+                            </button>
+                        </div>
                     </div>
                 )}
             </div>

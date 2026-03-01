@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { useRouter } from 'next/navigation';
 import NotificationCenter from '@/components/NotificationCenter';
@@ -15,13 +16,17 @@ export default function AppHeader() {
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
                         <NavigationMenu />
-                        <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-                            Sport Link
-                        </h1>
+                        <Link
+                            href="/dashboard"
+                            className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent hover:opacity-90 transition-opacity"
+                            aria-label="SportsLink ホーム"
+                        >
+                            SportsLink
+                        </Link>
                     </div>
                     <div className="flex items-center gap-4">
                         <NotificationCenter />
-                        <span className="text-slate-300">{user?.display_name || user?.email}</span>
+                        <span className="text-slate-300 truncate max-w-[120px] sm:max-w-[200px] hidden sm:inline-block">{user?.display_name || user?.email}</span>
                         <button
                             onClick={async () => {
                                 await useAuthStore.getState().logout();

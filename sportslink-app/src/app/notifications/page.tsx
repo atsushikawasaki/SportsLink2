@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { confirmAsync } from '@/lib/toast';
 import { useNotificationStore, type Notification } from '@/features/notifications/hooks/useNotificationStore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Check, Trash2, Bell } from 'lucide-react';
+import AuthKeyDisplay from '@/components/AuthKeyDisplay';
 
 export default function NotificationsPage() {
     const router = useRouter();
@@ -56,7 +58,8 @@ export default function NotificationsPage() {
                                 {unreadCount > 0 && (
                                     <button
                                         onClick={() => markAllAsRead()}
-                                        className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors"
+                                        className="flex items-center gap-2 px-4 py-3 min-h-[48px] bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-800"
+                                        aria-label="すべて既読にする"
                                     >
                                         <Check className="w-4 h-4" />
                                         すべて既読
@@ -64,12 +67,16 @@ export default function NotificationsPage() {
                                 )}
                                 {notifications.length > 0 && (
                                     <button
-                                        onClick={() => {
-                                            if (confirm('すべての通知を削除しますか？')) {
-                                                deleteAllNotifications();
-                                            }
+                                        onClick={async () => {
+                                            const ok = await confirmAsync({
+                                                title: '確認',
+                                                message: 'すべての通知を削除しますか？',
+                                                confirmLabel: '削除',
+                                            });
+                                            if (ok) deleteAllNotifications();
                                         }}
-                                        className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                                        className="flex items-center gap-2 px-4 py-3 min-h-[48px] bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-slate-800"
+                                        aria-label="すべての通知を削除"
                                     >
                                         <Trash2 className="w-4 h-4" />
                                         すべて削除
@@ -116,6 +123,19 @@ export default function NotificationsPage() {
                             <p className="text-slate-400 text-lg mb-2">
                                 {filter === 'unread' ? '未読の通知はありません' : '通知はありません'}
                             </p>
+                            {filter === 'all' && (
+                                <p className="text-slate-500 text-sm mb-6">
+                                    担当試合の割当や認証キーなど、新しい通知がここに表示されます
+                                </p>
+                            )}
+                            {filter === 'all' && (
+                                <Link
+                                    href="/dashboard"
+                                    className="inline-block px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                                >
+                                    ダッシュボードへ
+                                </Link>
+                            )}
                         </div>
                     ) : (
                         <div className="space-y-4">
@@ -141,9 +161,7 @@ export default function NotificationsPage() {
                                             {notification.type === 'auth_key' && notification.data?.day_token && (
                                                 <div className="mt-3 p-3 bg-blue-500/20 rounded border border-blue-500/30">
                                                     <p className="text-sm text-slate-300 mb-2">認証キー</p>
-                                                    <p className="text-3xl font-bold text-blue-400 font-mono">
-                                                        {notification.data.day_token}
-                                                    </p>
+                                                    <AuthKeyDisplay token={notification.data.day_token} size="lg" />
                                                 </div>
                                             )}
                                             <p className="text-sm text-slate-500 mt-3">
@@ -157,8 +175,9 @@ export default function NotificationsPage() {
                                                         e.stopPropagation();
                                                         markAsRead(notification.id);
                                                     }}
-                                                    className="p-2 text-slate-400 hover:text-blue-400 transition-colors"
+                                                    className="p-3 min-w-[48px] min-h-[48px] flex items-center justify-center text-slate-400 hover:text-blue-400 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset"
                                                     title="既読にする"
+                                                    aria-label="既読にする"
                                                 >
                                                     <Check className="w-5 h-5" />
                                                 </button>
@@ -168,8 +187,9 @@ export default function NotificationsPage() {
                                                     e.stopPropagation();
                                                     deleteNotification(notification.id);
                                                 }}
-                                                className="p-2 text-slate-400 hover:text-red-400 transition-colors"
+                                                className="p-3 min-w-[48px] min-h-[48px] flex items-center justify-center text-slate-400 hover:text-red-400 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-inset"
                                                 title="削除"
+                                                aria-label="通知を削除"
                                             >
                                                 <Trash2 className="w-5 h-5" />
                                             </button>

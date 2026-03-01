@@ -124,7 +124,7 @@ export async function determineMatchWinner(matchId: string): Promise<string | nu
             .select('team_id, pair_id')
             .eq('match_id', matchId)
             .eq('pair_number', 1)
-            .single();
+            .maybeSingle();
 
         return matchPairA?.team_id || matchPairA?.pair_id || null;
     } else if (score.game_count_b > score.game_count_a) {
@@ -133,7 +133,7 @@ export async function determineMatchWinner(matchId: string): Promise<string | nu
             .select('team_id, pair_id')
             .eq('match_id', matchId)
             .eq('pair_number', 2)
-            .single();
+            .maybeSingle();
 
         return matchPairB?.team_id || matchPairB?.pair_id || null;
     }
@@ -224,7 +224,7 @@ export async function shouldFinishParentMatch(parentMatchId: string): Promise<bo
             .from('match_scores')
             .select('winner_id')
             .eq('match_id', childMatch.id)
-            .single();
+            .maybeSingle();
 
         if (score?.winner_id) {
             teamWins[score.winner_id] = (teamWins[score.winner_id] || 0) + 1;
@@ -275,7 +275,7 @@ export async function finishParentTeamMatch(parentMatchId: string): Promise<stri
             .from('match_scores')
             .select('winner_id')
             .eq('match_id', childMatch.id)
-            .single();
+            .maybeSingle();
 
         if (score?.winner_id) {
             teamWins[score.winner_id] = (teamWins[score.winner_id] || 0) + 1;
@@ -307,7 +307,7 @@ export async function finishParentTeamMatch(parentMatchId: string): Promise<stri
             .from('match_scores')
             .select('match_id')
             .eq('match_id', parentMatchId)
-            .single();
+            .maybeSingle();
 
         if (existingScore) {
             await supabase
@@ -394,13 +394,13 @@ export async function propagateWinnerToNextMatch(
         .select('id, team_id, player_1_id, player_2_id')
         .eq('match_id', match.next_match_id)
         .eq('pair_number', slotNumber)
-        .single();
+        .maybeSingle();
 
     const { data: team } = await supabase
         .from('teams')
         .select('id')
         .eq('id', winnerId)
-        .single();
+        .maybeSingle();
 
     const isTeam = !!team;
 
@@ -410,7 +410,7 @@ export async function propagateWinnerToNextMatch(
         .from('match_scores')
         .select('game_count_a, game_count_b')
         .eq('match_id', matchId)
-        .single();
+        .maybeSingle();
     if (score) {
         const winnerSlot = score.game_count_a > score.game_count_b ? 1 : 2;
         const { data: winnerMatchPair } = await supabase
@@ -528,6 +528,52 @@ export async function propagateWinnerToNextMatch(
             .from('match_pairs')
             .insert(pairData);
     }
+
+    const { data: nextMatchRow } = await supabase
+        .from('matches')
+        .select('tournament_id')
+        .eq('id', match.next_match_id)
+        .single();
+    const tournamentId = nextMatchRow?.tournament_id as string | undefined;
+    if (tournamentId) {
+        let entryId: string | null = null;
+        if (isTeam) {
+            const { data: entry } = await supabase
+                .from('tournament_entries')
+                .select('id')
+                .eq('tournament_id', tournamentId)
+                .eq('team_id', winnerId)
+                .eq('is_active', true)
+                .limit(1)
+                .maybeSingle();
+            entryId = entry?.id ?? null;
+        } else {
+            const { data: entry } = await supabase
+                .from('tournament_entries')
+                .select('id')
+                .eq('tournament_id', tournamentId)
+                .eq('pair_id', winnerId)
+                .eq('is_active', true)
+                .limit(1)
+                .maybeSingle();
+            entryId = entry?.id ?? null;
+        }
+        if (entryId) {
+            const { data: slotRow } = await supabase
+                .from('match_slots')
+                .select('id')
+                .eq('match_id', match.next_match_id)
+                .eq('slot_number', slotNumber)
+                .eq('source_match_id', matchId)
+                .maybeSingle();
+            if (slotRow?.id) {
+                await supabase
+                    .from('match_slots')
+                    .update({ entry_id: entryId })
+                    .eq('id', slotRow.id);
+            }
+        }
+    }
 }
 
 /**
@@ -552,7 +598,9 @@ export async function processMatchFinish(matchId: string): Promise<void> {
     // Determine winner
     const winnerId = await determineMatchWinner(matchId);
     if (!winnerId) {
-        throw new Error(`Could not determine winner for match: ${matchId}`);
+        const err = new Error(`Could not determine winner for match: ${matchId}`);
+        (err as any).code = 'NO_WINNER';
+        throw err;
     }
 
     // Update match score with winner

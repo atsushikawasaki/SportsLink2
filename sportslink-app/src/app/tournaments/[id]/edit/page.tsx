@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import AppHeader from '@/components/AppHeader';
 import Breadcrumbs from '@/components/Breadcrumbs';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 const tournamentSchema = z.object({
     name: z.string().min(1, '大会名を入力してください'),
@@ -103,7 +104,7 @@ export default function EditTournamentPage() {
     if (loading) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-400"></div>
+                <LoadingSpinner />
             </div>
         );
     }

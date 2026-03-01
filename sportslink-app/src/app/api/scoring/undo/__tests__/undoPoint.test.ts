@@ -173,15 +173,16 @@ describe('undoPoint', () => {
       eq: vi.fn().mockResolvedValue({ data: null, error: null }),
     };
 
-    const mockVersionUpdate = {
-      eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-    };
+    const mockVersionSingle = vi.fn().mockResolvedValue({ data: { version: 6 }, error: null });
+    const mockVersionSelect = vi.fn().mockReturnValue({ single: mockVersionSingle });
+    const mockVersionEq2 = vi.fn().mockReturnValue({ select: mockVersionSelect });
+    const mockVersionEq1 = vi.fn().mockReturnValue({ eq: mockVersionEq2 });
 
     mockFrom.mockImplementation((table: string) => {
       if (table === 'matches') {
         return {
           select: mockSelect,
-          update: vi.fn().mockReturnValue(mockVersionUpdate),
+          update: vi.fn().mockReturnValue({ eq: mockVersionEq1 }),
         };
       }
       if (table === 'points') {
@@ -222,7 +223,7 @@ describe('undoPoint', () => {
     );
   });
 
-  it('should increment match version after undo', async () => {
+  it('should increment match version after undo with optimistic lock', async () => {
     const mockPoint = {
       id: 'point-123',
       match_id: 'match-123',
@@ -248,15 +249,23 @@ describe('undoPoint', () => {
       error: null,
     });
 
-    const mockVersionUpdate = {
-      eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-    };
+    const mockVersionEq2 = vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        single: vi.fn().mockResolvedValue({ data: { version: 6 }, error: null }),
+      }),
+    });
+    const mockVersionEq1 = vi.fn().mockReturnValue({
+      eq: mockVersionEq2,
+    });
+    const mockVersionUpdate = vi.fn().mockReturnValue({
+      eq: mockVersionEq1,
+    });
 
     mockFrom.mockImplementation((table: string) => {
       if (table === 'matches') {
         return {
           select: mockSelect,
-          update: vi.fn().mockReturnValue(mockVersionUpdate),
+          update: mockVersionUpdate,
         };
       }
       if (table === 'points') {
@@ -279,7 +288,9 @@ describe('undoPoint', () => {
 
     await undoPoint(request);
 
-    expect(mockVersionUpdate.eq).toHaveBeenCalledWith('id', 'match-123');
+    expect(mockVersionUpdate).toHaveBeenCalledWith({ version: 6 });
+    expect(mockVersionEq1).toHaveBeenCalledWith('id', 'match-123');
+    expect(mockVersionEq2).toHaveBeenCalledWith('version', 5);
   });
 
   it('should return 500 on database error when updating point', async () => {
@@ -381,15 +392,16 @@ describe('undoPoint', () => {
       eq: vi.fn().mockResolvedValue({ data: null, error: null }),
     };
 
-    const mockVersionUpdate = {
-      eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-    };
+    const mockVersionSingle = vi.fn().mockResolvedValue({ data: { version: 6 }, error: null });
+    const mockVersionSelect = vi.fn().mockReturnValue({ single: mockVersionSingle });
+    const mockVersionEq2 = vi.fn().mockReturnValue({ select: mockVersionSelect });
+    const mockVersionEq1 = vi.fn().mockReturnValue({ eq: mockVersionEq2 });
 
     mockFrom.mockImplementation((table: string) => {
       if (table === 'matches') {
         return {
           select: mockSelect,
-          update: vi.fn().mockReturnValue(mockVersionUpdate),
+          update: vi.fn().mockReturnValue({ eq: mockVersionEq1 }),
         };
       }
       if (table === 'points') {

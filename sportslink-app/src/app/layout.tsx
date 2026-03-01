@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { AuthProvider } from "@/components/AuthProvider";
+import ToastContainer from "@/features/toast/components/ToastContainer";
+import ConfirmModalGlobal from "@/features/confirm/components/ConfirmModalGlobal";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -31,6 +33,8 @@ export default function RootLayout({
       >
         <AuthProvider>
           {children}
+          <ToastContainer />
+          <ConfirmModalGlobal />
         </AuthProvider>
       </body>
     </html>

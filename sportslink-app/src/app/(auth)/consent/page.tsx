@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import Link from 'next/link';
 import { AlertCircle, CheckCircle } from 'lucide-react';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 export default function ConsentPage() {
     const router = useRouter();
@@ -90,7 +91,7 @@ export default function ConsentPage() {
     if (!isAuthenticated || isLoading) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-400"></div>
+                <LoadingSpinner />
             </div>
         );
     }
@@ -100,7 +101,7 @@ export default function ConsentPage() {
         // useEffectでリダイレクトするため、ここでは何も表示しない
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-400"></div>
+                <LoadingSpinner />
             </div>
         );
     }

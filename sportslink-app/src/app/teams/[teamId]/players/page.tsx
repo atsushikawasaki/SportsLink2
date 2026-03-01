@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { toast, confirmAsync } from '@/lib/toast';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Plus, Edit, Trash2 } from 'lucide-react';
@@ -60,9 +62,8 @@ export default function PlayersPage() {
     };
 
     const handleDelete = async (playerId: string) => {
-        if (!confirm('この選手を削除しますか？')) {
-            return;
-        }
+        const ok = await confirmAsync({ title: '確認', message: 'この選手を削除しますか？', confirmLabel: '削除' });
+        if (!ok) return;
 
         try {
             const response = await fetch(`/api/teams/players/${playerId}`, {
@@ -71,20 +72,21 @@ export default function PlayersPage() {
 
             if (!response.ok) {
                 const result = await response.json();
-                alert(result.error || '選手の削除に失敗しました');
+                toast.error(result.error || '選手の削除に失敗しました');
                 return;
             }
 
+            toast.success('選手を削除しました');
             fetchData();
-        } catch (err) {
-            alert('選手の削除に失敗しました');
+        } catch {
+            toast.error('選手の削除に失敗しました');
         }
     };
 
     if (loading) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-400"></div>
+                <LoadingSpinner />
             </div>
         );
     }
@@ -181,6 +183,7 @@ export default function PlayersPage() {
                                         className="flex items-center justify-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors text-sm"
                                     >
                                         <Trash2 className="w-4 h-4" />
+                                        削除
                                     </button>
                                 </div>
                             </div>

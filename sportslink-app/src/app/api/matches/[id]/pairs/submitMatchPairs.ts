@@ -35,13 +35,20 @@ export async function submitMatchPairs(id: string, request: Request) {
 
         const { data: matchMeta, error: matchError } = await supabase
             .from('matches')
-            .select('tournament_id')
+            .select('tournament_id, status')
             .eq('id', id)
             .single();
         if (matchError || !matchMeta) {
             return NextResponse.json(
                 { error: '試合が見つかりません', code: 'E-NOT-FOUND' },
                 { status: 404 }
+            );
+        }
+
+        if (matchMeta.status === 'finished') {
+            return NextResponse.json(
+                { error: '終了した試合のペアは変更できません', code: 'E-VER-003' },
+                { status: 400 }
             );
         }
         const tournamentId = matchMeta.tournament_id as string;

@@ -6,6 +6,14 @@ export async function getTournamentTeams(id: string) {
     try {
         const supabase = await createClient();
 
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+        if (authError || !authUser) {
+            return NextResponse.json(
+                { error: '認証が必要です', code: 'E-AUTH-001' },
+                { status: 401 }
+            );
+        }
+
         const { data: entryTeamIds, error: entryError } = await supabase
             .from('tournament_entries')
             .select('team_id')

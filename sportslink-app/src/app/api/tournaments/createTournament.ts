@@ -7,9 +7,21 @@ export async function createTournament(request: Request) {
         const body = await request.json();
         const { name, description, status, is_public, start_date, end_date, match_format, umpire_mode } = body;
 
-        if (!name) {
+        if (!name || typeof name !== 'string' || name.trim().length === 0) {
             return NextResponse.json(
                 { error: '大会名は必須です', code: 'E-VER-003' },
+                { status: 400 }
+            );
+        }
+        if (name.length > 200) {
+            return NextResponse.json(
+                { error: '大会名は200文字以内で入力してください', code: 'E-VER-003' },
+                { status: 400 }
+            );
+        }
+        if (start_date && end_date && new Date(start_date) > new Date(end_date)) {
+            return NextResponse.json(
+                { error: '終了日は開始日以降にしてください', code: 'E-VER-003' },
                 { status: 400 }
             );
         }
@@ -49,13 +61,22 @@ export async function createTournament(request: Request) {
         }
 
         // Add tournament_admin permission for creator
-        await supabase.from('user_permissions').insert({
+        const { error: permError } = await supabase.from('user_permissions').insert({
             user_id: user.id,
             role_type: 'tournament_admin',
             tournament_id: data.id,
             team_id: null,
             match_id: null,
         });
+        if (permError) {
+            console.error('Failed to create tournament_admin permission:', permError);
+            // Clean up: delete the tournament if permission creation fails
+            await supabase.from('tournaments').delete().eq('id', data.id);
+            return NextResponse.json(
+                { error: '大会の作成に失敗しました（権限設定エラー）', code: 'E-DB-001' },
+                { status: 500 }
+            );
+        }
 
         return NextResponse.json(data, { status: 201 });
     } catch (error) {

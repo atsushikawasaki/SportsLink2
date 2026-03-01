@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { toast } from '@/lib/toast';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -8,6 +9,7 @@ import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import AppHeader from '@/components/AppHeader';
+import Button from '@/components/ui/Button';
 
 const profileSchema = z.object({
     displayName: z.string().min(1, '表示名を入力してください'),
@@ -31,7 +33,7 @@ type PasswordInput = z.infer<typeof passwordSchema>;
 type DeleteAccountInput = z.infer<typeof deleteAccountSchema>;
 
 export default function SettingsPage() {
-    const [activeTab, setActiveTab] = useState<'profile' | 'notifications' | 'app' | 'security'>('profile');
+    const [activeTab, setActiveTab] = useState<'profile' | 'security'>('profile');
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -75,6 +77,7 @@ export default function SettingsPage() {
 
             setUser(result.user);
             setSuccess('プロフィールを更新しました');
+            toast.success('プロフィールを更新しました');
         } catch {
             setError('更新に失敗しました');
         } finally {
@@ -105,6 +108,7 @@ export default function SettingsPage() {
             }
 
             setSuccess('パスワードを変更しました');
+            toast.success('パスワードを変更しました');
             passwordForm.reset();
         } catch {
             setError('パスワードの変更に失敗しました');
@@ -180,26 +184,6 @@ export default function SettingsPage() {
                             プロフィール
                         </button>
                         <button
-                            onClick={() => setActiveTab('notifications')}
-                            className={`px-4 py-2 font-medium transition-colors whitespace-nowrap ${
-                                activeTab === 'notifications'
-                                    ? 'text-blue-400 border-b-2 border-blue-400'
-                                    : 'text-slate-400 hover:text-slate-300'
-                            }`}
-                        >
-                            通知設定
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('app')}
-                            className={`px-4 py-2 font-medium transition-colors whitespace-nowrap ${
-                                activeTab === 'app'
-                                    ? 'text-blue-400 border-b-2 border-blue-400'
-                                    : 'text-slate-400 hover:text-slate-300'
-                            }`}
-                        >
-                            アプリ設定
-                        </button>
-                        <button
                             onClick={() => setActiveTab('security')}
                             className={`px-4 py-2 font-medium transition-colors whitespace-nowrap ${
                                 activeTab === 'security'
@@ -258,73 +242,16 @@ export default function SettingsPage() {
                                 <p className="mt-1 text-sm text-slate-500">メールアドレスは変更できません</p>
                             </div>
 
-                            <button
-                                type="submit"
-                                disabled={isLoading}
-                                className="px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-semibold rounded-lg shadow-lg hover:from-blue-600 hover:to-cyan-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                            >
-                                {isLoading ? '保存中...' : '保存'}
-                            </button>
+                            <Button type="submit" variant="primary" size="lg" isLoading={isLoading}>
+                                保存
+                            </Button>
                         </form>
                     )}
 
-                    {/* Notifications Tab */}
-                    {activeTab === 'notifications' && (
-                        <div className="space-y-6">
-                            <h2 className="text-xl font-semibold text-white mb-4">通知設定</h2>
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-between p-4 bg-slate-700/30 rounded-lg">
-                                    <div>
-                                        <h3 className="text-white font-medium">メール通知</h3>
-                                        <p className="text-sm text-slate-400">メールでの通知を受け取る</p>
-                                    </div>
-                                    <label className="relative inline-flex items-center cursor-pointer">
-                                        <input type="checkbox" className="sr-only peer" defaultChecked />
-                                        <div className="w-11 h-6 bg-slate-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                                    </label>
-                                </div>
+                    {/* Hidden: notifications and app tabs (未実装のため非表示) */}
 
-                                <div className="flex items-center justify-between p-4 bg-slate-700/30 rounded-lg">
-                                    <div>
-                                        <h3 className="text-white font-medium">プッシュ通知</h3>
-                                        <p className="text-sm text-slate-400">ブラウザからのプッシュ通知を受け取る</p>
-                                    </div>
-                                    <label className="relative inline-flex items-center cursor-pointer">
-                                        <input type="checkbox" className="sr-only peer" defaultChecked />
-                                        <div className="w-11 h-6 bg-slate-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                                    </label>
-                                </div>
-
-                                <div className="flex items-center justify-between p-4 bg-slate-700/30 rounded-lg">
-                                    <div>
-                                        <h3 className="text-white font-medium">試合更新通知</h3>
-                                        <p className="text-sm text-slate-400">担当試合の更新通知を受け取る</p>
-                                    </div>
-                                    <label className="relative inline-flex items-center cursor-pointer">
-                                        <input type="checkbox" className="sr-only peer" defaultChecked />
-                                        <div className="w-11 h-6 bg-slate-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                                    </label>
-                                </div>
-
-                                <div className="flex items-center justify-between p-4 bg-slate-700/30 rounded-lg">
-                                    <div>
-                                        <h3 className="text-white font-medium">大会更新通知</h3>
-                                        <p className="text-sm text-slate-400">参加大会の更新通知を受け取る</p>
-                                    </div>
-                                    <label className="relative inline-flex items-center cursor-pointer">
-                                        <input type="checkbox" className="sr-only peer" defaultChecked />
-                                        <div className="w-11 h-6 bg-slate-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                                    </label>
-                                </div>
-                            </div>
-                            <p className="text-sm text-slate-400 mt-4">
-                                注: 通知設定は現在開発中です。設定は保存されません。
-                            </p>
-                        </div>
-                    )}
-
-                    {/* App Settings Tab */}
-                    {activeTab === 'app' && (
+                    {/* Hidden: app tab (開発中) - removed for UX */}
+                    {false && activeTab === 'app' && (
                         <div className="space-y-6">
                             <h2 className="text-xl font-semibold text-white mb-4">アプリ設定</h2>
                             <div className="space-y-4">
@@ -439,13 +366,9 @@ export default function SettingsPage() {
                                         )}
                                     </div>
 
-                                    <button
-                                        type="submit"
-                                        disabled={isLoading}
-                                        className="px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-semibold rounded-lg shadow-lg hover:from-blue-600 hover:to-cyan-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                                    >
-                                        {isLoading ? '変更中...' : 'パスワードを変更'}
-                                    </button>
+                                    <Button type="submit" variant="primary" size="lg" isLoading={isLoading}>
+                                        パスワードを変更
+                                    </Button>
                                 </form>
                             </div>
 
@@ -457,12 +380,14 @@ export default function SettingsPage() {
                                 </p>
 
                                 {!showDeleteConfirm ? (
-                                    <button
+                                    <Button
+                                        type="button"
+                                        variant="danger"
+                                        size="lg"
                                         onClick={() => setShowDeleteConfirm(true)}
-                                        className="px-6 py-3 bg-red-600 text-white font-semibold rounded-lg shadow-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-slate-800 transition-all duration-200"
                                     >
                                         アカウントを削除
-                                    </button>
+                                    </Button>
                                 ) : (
                                     <form onSubmit={deleteAccountForm.handleSubmit(onDeleteAccount)} className="space-y-6">
                                         <div>
@@ -484,23 +409,25 @@ export default function SettingsPage() {
                                         </div>
 
                                         <div className="flex space-x-4">
-                                            <button
+                                            <Button
                                                 type="submit"
-                                                disabled={isLoading}
-                                                className="px-6 py-3 bg-red-600 text-white font-semibold rounded-lg shadow-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                                                variant="danger"
+                                                size="lg"
+                                                isLoading={isLoading}
                                             >
-                                                {isLoading ? '削除中...' : 'アカウントを削除'}
-                                            </button>
-                                            <button
+                                                アカウントを削除
+                                            </Button>
+                                            <Button
                                                 type="button"
+                                                variant="secondary"
+                                                size="lg"
                                                 onClick={() => {
                                                     setShowDeleteConfirm(false);
                                                     deleteAccountForm.reset();
                                                 }}
-                                                className="px-6 py-3 bg-slate-600 text-white font-semibold rounded-lg shadow-lg hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-800 transition-all duration-200"
                                             >
                                                 キャンセル
-                                            </button>
+                                            </Button>
                                         </div>
                                     </form>
                                 )}
@@ -508,15 +435,17 @@ export default function SettingsPage() {
 
                             {/* Logout */}
                             <div className="border-t border-slate-700 pt-8">
-                                <button
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="lg"
                                     onClick={async () => {
                                         await logout();
                                         router.push('/');
                                     }}
-                                    className="px-6 py-3 bg-slate-600 text-white font-semibold rounded-lg shadow-lg hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-800 transition-all duration-200"
                                 >
                                     ログアウト
-                                </button>
+                                </Button>
                             </div>
                         </div>
                     )}

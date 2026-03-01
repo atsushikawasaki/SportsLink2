@@ -31,7 +31,7 @@ export async function assignMatch(id: string, request: Request) {
 
         const { data: match, error: matchError } = await supabase
             .from('matches')
-            .select('tournament_id, umpire_id')
+            .select('tournament_id, umpire_id, status')
             .eq('id', id)
             .single();
 
@@ -39,6 +39,13 @@ export async function assignMatch(id: string, request: Request) {
             return NextResponse.json(
                 { error: '試合が見つかりません', code: 'E-NOT-FOUND' },
                 { status: 404 }
+            );
+        }
+
+        if (match.status === 'finished') {
+            return NextResponse.json(
+                { error: '終了した試合の割当は変更できません', code: 'E-VER-003' },
+                { status: 400 }
             );
         }
 

@@ -48,11 +48,26 @@ export async function revertMatch(id: string) {
         }
 
         const nextMatchId = match.next_match_id as string | null;
-        const winnerSourceA = match.winner_source_match_a as string | null;
-        const winnerSourceB = match.winner_source_match_b as string | null;
 
         if (nextMatchId) {
+            // Check if next match has already started
+            const { data: nextMatch } = await supabase
+                .from('matches')
+                .select('id, status, winner_source_match_a, winner_source_match_b')
+                .eq('id', nextMatchId)
+                .single();
+
+            if (nextMatch && (nextMatch.status === 'inprogress' || nextMatch.status === 'finished')) {
+                return NextResponse.json(
+                    { error: '次の試合が既に開始または終了しているため、差し戻しできません。先に次の試合を差し戻してください。', code: 'E-VER-003' },
+                    { status: 400 }
+                );
+            }
+
+            // Determine which slot this match feeds into
             let slotNumber: number | null = null;
+            const winnerSourceA = nextMatch?.winner_source_match_a as string | null;
+            const winnerSourceB = nextMatch?.winner_source_match_b as string | null;
             if (winnerSourceA === id) slotNumber = 1;
             else if (winnerSourceB === id) slotNumber = 2;
             else {
@@ -63,7 +78,9 @@ export async function revertMatch(id: string) {
                     .single();
                 slotNumber = me?.slot_index != null && me.slot_index % 2 === 0 ? 1 : 2;
             }
+
             if (slotNumber != null) {
+                // Clear match_pairs for this slot in next match
                 const { data: pair } = await supabase
                     .from('match_pairs')
                     .select('id')
@@ -73,6 +90,14 @@ export async function revertMatch(id: string) {
                 if (pair?.id) {
                     await supabase.from('match_pairs').delete().eq('id', (pair as { id: string }).id);
                 }
+
+                // Clear match_slots.entry_id for this slot in next match
+                await supabase
+                    .from('match_slots')
+                    .update({ entry_id: null })
+                    .eq('match_id', nextMatchId)
+                    .eq('slot_number', slotNumber)
+                    .eq('source_match_id', id);
             }
         }
 

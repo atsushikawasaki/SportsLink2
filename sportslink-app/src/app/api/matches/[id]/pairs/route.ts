@@ -7,7 +7,7 @@ export async function GET(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const { id } = await params;
-    return getMatchPairs(id);
+    return getMatchPairs(id, request);
 }
 
 // POST /api/matches/:id/pairs - ペア提出

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { toast } from '@/lib/toast';
 import { FileDown, Loader2 } from 'lucide-react';
 import { exportToPDFSimple, type TournamentResults } from '@/lib/pdf-export';
 
@@ -18,7 +19,7 @@ export default function PDFExportButton({ tournamentId, tournamentName }: PDFExp
             const response = await fetch(`/api/tournaments/${tournamentId}/results/export?format=pdf`);
             if (!response.ok) {
                 const error = await response.json();
-                alert(error.error || 'PDFのエクスポートに失敗しました');
+                toast.error(error.error || 'PDFのエクスポートに失敗しました');
                 return;
             }
 
@@ -28,7 +29,7 @@ export default function PDFExportButton({ tournamentId, tournamentName }: PDFExp
             exportToPDFSimple(data);
         } catch (error) {
             console.error('PDF export error:', error);
-            alert('PDFのエクスポートに失敗しました');
+            toast.error('PDFのエクスポートに失敗しました');
         } finally {
             setIsExporting(false);
         }

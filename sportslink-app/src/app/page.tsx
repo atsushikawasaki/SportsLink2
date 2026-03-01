@@ -5,7 +5,7 @@ export default function HomePage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
       <div className="text-center px-4">
         <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-400 bg-clip-text text-transparent mb-6">
-          Sport Link
+          SportsLink
         </h1>
         <p className="text-xl text-slate-400 mb-8 max-w-2xl mx-auto">
           ソフトテニス大会運営支援システム
@@ -24,6 +24,12 @@ export default function HomePage() {
             className="px-8 py-4 bg-slate-700/50 text-white font-semibold rounded-xl border border-slate-600 hover:bg-slate-700 transition-all duration-200"
           >
             新規登録
+          </Link>
+          <Link
+            href="/public-tournaments"
+            className="px-8 py-4 text-slate-300 font-semibold rounded-xl border border-slate-600 hover:bg-slate-800 hover:text-white transition-all duration-200"
+          >
+            公開大会を見る
           </Link>
         </div>
       </div>

@@ -16,7 +16,7 @@ export async function startMatch(matchId: string) {
 
         const { data: matchMeta, error: matchError } = await supabase
             .from('matches')
-            .select('tournament_id')
+            .select('tournament_id, status')
             .eq('id', matchId)
             .single();
         if (matchError || !matchMeta) {
@@ -25,6 +25,20 @@ export async function startMatch(matchId: string) {
                 { status: 404 }
             );
         }
+
+        if (matchMeta.status === 'inprogress') {
+            return NextResponse.json(
+                { error: 'この試合は既に進行中です', code: 'E-VER-003' },
+                { status: 400 }
+            );
+        }
+        if (matchMeta.status === 'finished') {
+            return NextResponse.json(
+                { error: '終了済みの試合は開始できません', code: 'E-VER-003' },
+                { status: 400 }
+            );
+        }
+
         const tournamentId = matchMeta.tournament_id as string;
         const [umpire, tournamentAdmin, admin] = await Promise.all([
             isUmpire(authUser.id, tournamentId, matchId),

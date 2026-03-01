@@ -287,6 +287,8 @@ export type Database = {
                     next_match_id: string | null
                     winner_source_match_a: string | null
                     winner_source_match_b: string | null
+                    order_submitted_slot_1_at: string | null
+                    order_submitted_slot_2_at: string | null
                 }
                 Insert: {
                     id?: string
@@ -329,6 +331,8 @@ export type Database = {
                     next_match_id?: string | null
                     winner_source_match_a?: string | null
                     winner_source_match_b?: string | null
+                    order_submitted_slot_1_at?: string | null
+                    order_submitted_slot_2_at?: string | null
                 }
                 Relationships: []
             }

@@ -251,7 +251,7 @@ export default function SettingsPage() {
                     {/* Hidden: notifications and app tabs (未実装のため非表示) */}
 
                     {/* Hidden: app tab (開発中) - removed for UX */}
-                    {false && activeTab === 'app' && (
+                    {false && (activeTab as string) === 'app' && (
                         <div className="space-y-6">
                             <h2 className="text-xl font-semibold text-white mb-4">アプリ設定</h2>
                             <div className="space-y-4">

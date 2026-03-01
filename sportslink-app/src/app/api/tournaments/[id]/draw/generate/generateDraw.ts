@@ -177,13 +177,14 @@ export async function generateDraw(id: string, request?: Request) {
         const isTeamMatch = tournamentRow.match_format === 'team_doubles_3' || tournamentRow.match_format === 'team_doubles_4_singles_1';
         const childMatchCount = tournamentRow.match_format === 'team_doubles_3' ? 3 : tournamentRow.match_format === 'team_doubles_4_singles_1' ? 5 : 1;
 
-        // エントリーを取得
+        // エントリーを取得（明示的に上限を指定して全件取得する）
         const { data: entries, error: entriesError } = await adminClient
             .from('tournament_entries')
             .select('*')
             .eq('tournament_id', id)
             .eq('is_active', true)
-            .order('seed_rank', { ascending: true });
+            .order('seed_rank', { ascending: true })
+            .limit(1000);
 
         if (entriesError) {
             return NextResponse.json(
@@ -258,8 +259,10 @@ export async function generateDraw(id: string, request?: Request) {
                 }, {});
                 hasRealFinished = finishedMatchIds.some((matchId) => {
                     const reasons = matchIdToReasons[matchId] ?? [];
-                    const isBye = reasons.length === 1 && reasons[0] === 'DEFAULT';
-                    return !isBye;
+                    const isByeOnly =
+                        reasons.length === 0 ||
+                        reasons.every((r) => r === 'DEFAULT' || r == null);
+                    return !isByeOnly;
                 });
             }
             if (hasRealFinished) {
@@ -370,8 +373,10 @@ export async function generateDraw(id: string, request?: Request) {
         }
 
         const entrySet = new Set(entryPositions);
-        // シード優先順で並んだ「エントリーが入る枠」の順序（BYE 枠は含めない）
-        const entryPositionsInBracketOrder = placementOrder.filter((pos) => entrySet.has(pos));
+        // BYE vs BYE を防ぐため「各1回戦の片方の枠」を先に割り当てる。先頭 P 件は位置 0..P-1（各ペアで必ず1枠埋まる）、続く M-P 件は N-1-p（フルペアの反対側）。
+        const firstHalfPositions = placementOrder.filter((pos) => pos < P);
+        const secondHalfPositions = placementOrder.filter((pos) => pos >= P && entrySet.has(pos));
+        const entryPositionsInBracketOrder = firstHalfPositions.concat(secondHalfPositions);
         const seedOrderForM = getSeedOrder(M);
 
         type EntryRow = (typeof entriesForBracket)[0];
@@ -381,6 +386,65 @@ export async function generateDraw(id: string, request?: Request) {
             seededEntries[bracketPos] = entriesForBracket[i];
         }
 
+        const getGroupKey = (e: EntryRow | null): string | null => {
+            if (!e || typeof e !== 'object') return null;
+            const r = (e as { region_name?: string | null }).region_name;
+            const t = (e as { team_id?: string | null }).team_id;
+            if (r != null && r !== '') return `region:${r}`;
+            if (t != null && t !== '') return `team:${t}`;
+            return null;
+        };
+        let sameGroupSwapped = true;
+        for (let pass = 0; pass < P && sameGroupSwapped; pass++) {
+            sameGroupSwapped = false;
+            for (let slot = 0; slot < P; slot++) {
+                const posA = slot;
+                const posB = N - 1 - slot;
+                const a = seededEntries[posA] ?? null;
+                const b = seededEntries[posB] ?? null;
+                const keyA = getGroupKey(a);
+                const keyB = getGroupKey(b);
+                if (keyA == null || keyB == null || keyA !== keyB) continue;
+                for (let other = 0; other < P; other++) {
+                    if (other === slot) continue;
+                    const posC = other;
+                    const posD = N - 1 - other;
+                    const c = seededEntries[posC] ?? null;
+                    const d = seededEntries[posD] ?? null;
+                    const keyC = getGroupKey(c);
+                    const keyD = getGroupKey(d);
+                    if (keyC != null && keyC !== keyA) {
+                        seededEntries[posB] = c;
+                        seededEntries[posC] = b;
+                        sameGroupSwapped = true;
+                        break;
+                    }
+                    if (keyD != null && keyD !== keyA) {
+                        seededEntries[posB] = d;
+                        seededEntries[posD] = b;
+                        sameGroupSwapped = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        for (let slot = 0; slot < P; slot++) {
+            const posA = slot;
+            const posB = N - 1 - slot;
+            if (seededEntries[posA] != null || seededEntries[posB] != null) continue;
+            for (let other = 0; other < P; other++) {
+                if (other === slot) continue;
+                const posC = other;
+                const posD = N - 1 - other;
+                if (seededEntries[posC] != null && seededEntries[posD] != null) {
+                    seededEntries[posB] = seededEntries[posC];
+                    seededEntries[posC] = null;
+                    break;
+                }
+            }
+        }
+
         // ラウンド数（1始まり: 1回戦=1, 決勝=roundCount）
         const roundCount = Math.log2(bracketSize);
 
@@ -388,141 +452,165 @@ export async function generateDraw(id: string, request?: Request) {
         let matchNumber = 1;
         const byeMatchIds: { matchId: string; winnerId: string }[] = [];
 
-        for (let round = 1; round <= roundCount; round++) {
-            const matchesInRound = bracketSize / Math.pow(2, round);
-            const roundName =
-                round === roundCount ? '決勝' : round === roundCount - 1 ? '準決勝' : `${round}回戦`;
+        if (isTeamMatch) {
+            // 団体戦: createTeamMatchは個別にDBアクセスが必要なのでループで処理
+            for (let round = 1; round <= roundCount; round++) {
+                const matchesInRound = bracketSize / Math.pow(2, round);
+                const roundName =
+                    round === roundCount ? '決勝' : round === roundCount - 1 ? '準決勝' : `${round}回戦`;
 
-            for (let slot = 0; slot < matchesInRound; slot++) {
-                const isRound1 = round === 1;
-                const entryA = isRound1 ? (seededEntries[slot] ?? null) : null;
-                const entryB = isRound1 ? (seededEntries[bracketSize - 1 - slot] ?? null) : null;
-                // シード配置により BYE vs BYE は発生しない（各ペアは必ず1以上エントリー）
-
-                const isBye = isRound1 && (entryA == null || entryB == null);
-                const byeWinnerEntry = isBye ? (entryA ?? entryB) : null;
-                const byeWinnerId =
-                    byeWinnerEntry != null
+                for (let slot = 0; slot < matchesInRound; slot++) {
+                    const isRound1 = round === 1;
+                    const entryA = isRound1 ? (seededEntries[slot] ?? null) : null;
+                    const entryB = isRound1 ? (seededEntries[bracketSize - 1 - slot] ?? null) : null;
+                    const isBye = isRound1 && (entryA == null || entryB == null);
+                    const byeWinnerEntry = isBye ? (entryA ?? entryB) : null;
+                    const byeWinnerId = byeWinnerEntry != null
                         ? (byeWinnerEntry.team_id ?? (byeWinnerEntry as { pair_id?: string }).pair_id ?? null)
                         : null;
 
-                const baseMatchData = {
-                    tournament_id: id,
-                    phase_id: phase.id,
-                    round_name: roundName,
-                    round_index: round,
-                    slot_index: slot,
-                    match_number: matchNumber++,
-                    ...(umpireId !== null && { umpire_id: umpireId }),
-                    ...(umpireId === null && { umpire_id: null }),
-                    status: isBye ? 'finished' : 'pending',
-                    version: 1,
-                };
+                    const baseMatchData = {
+                        tournament_id: id, phase_id: phase.id, round_name: roundName,
+                        round_index: round, slot_index: slot, match_number: matchNumber++,
+                        ...(umpireId !== null && { umpire_id: umpireId }),
+                        ...(umpireId === null && { umpire_id: null }),
+                        status: isBye ? 'finished' : 'pending', version: 1,
+                    };
 
-                if (isTeamMatch) {
                     try {
                         const childMatchesData = Array.from({ length: childMatchCount }, (_, i) => ({
-                            ...baseMatchData,
-                            round_name: `${roundName} - ${i + 1}試合目`,
-                            match_number: matchNumber - 1,
+                            ...baseMatchData, round_name: `${roundName} - ${i + 1}試合目`, match_number: matchNumber - 1,
                         }));
-
                         const { parentMatch } = await createTeamMatch(
-                            id,
-                            baseMatchData as Parameters<typeof createTeamMatch>[1],
+                            id, baseMatchData as Parameters<typeof createTeamMatch>[1],
                             childMatchesData as Parameters<typeof createTeamMatch>[2]
                         );
-
                         if (isBye) {
-                            await adminClient
-                                .from('matches')
-                                .update({ status: 'finished' } as Record<string, unknown>)
-                                .eq('id', parentMatch.id);
+                            await adminClient.from('matches').update({ status: 'finished' } as Record<string, unknown>).eq('id', parentMatch.id);
                         }
-
                         insertedMatches.push(parentMatch as { id: string; round_index: number; slot_index: number });
-                        if (isBye && byeWinnerId) {
-                            byeMatchIds.push({ matchId: parentMatch.id, winnerId: byeWinnerId });
-                        }
+                        if (isBye && byeWinnerId) byeMatchIds.push({ matchId: parentMatch.id, winnerId: byeWinnerId });
                     } catch (teamMatchError) {
                         console.error('Failed to create team match:', teamMatchError);
-                        return NextResponse.json(
-                            { error: '団体戦の作成に失敗しました', code: 'E-DB-001' },
-                            { status: 500 }
-                        );
+                        return NextResponse.json({ error: '団体戦の作成に失敗しました', code: 'E-DB-001' }, { status: 500 });
                     }
-                } else {
-                    const { data: matchData, error: matchError } = await adminClient
-                        .from('matches')
-                        .insert({
-                            ...baseMatchData,
-                            match_type: 'individual_match',
-                        } as Record<string, unknown>)
-                        .select()
-                        .single();
+                }
+            }
+        } else {
+            // 個人戦: 全試合データをまとめてバッチINSERT
+            const allMatchData: Record<string, unknown>[] = [];
+            const matchMetadata: { round: number; slot: number; isBye: boolean; byeWinnerId: string | null }[] = [];
 
-                    if (matchError || !matchData) {
-                        return NextResponse.json(
-                            { error: '試合の作成に失敗しました', code: 'E-DB-001', details: matchError?.message },
-                            { status: 500 }
-                        );
-                    }
+            for (let round = 1; round <= roundCount; round++) {
+                const matchesInRound = bracketSize / Math.pow(2, round);
+                const roundName =
+                    round === roundCount ? '決勝' : round === roundCount - 1 ? '準決勝' : `${round}回戦`;
 
-                    const match = matchData as { id: string; round_index: number; slot_index: number };
-                    insertedMatches.push(match);
+                for (let slot = 0; slot < matchesInRound; slot++) {
+                    const isRound1 = round === 1;
+                    const entryA = isRound1 ? (seededEntries[slot] ?? null) : null;
+                    const entryB = isRound1 ? (seededEntries[bracketSize - 1 - slot] ?? null) : null;
+                    const isBye = isRound1 && (entryA == null || entryB == null);
+                    const byeWinnerEntry = isBye ? (entryA ?? entryB) : null;
+                    const byeWinnerId = byeWinnerEntry != null
+                        ? (byeWinnerEntry.team_id ?? (byeWinnerEntry as { pair_id?: string }).pair_id ?? null)
+                        : null;
 
-                    if (isBye && byeWinnerId) {
-                        byeMatchIds.push({ matchId: match.id, winnerId: byeWinnerId });
-                    }
+                    allMatchData.push({
+                        tournament_id: id, phase_id: phase.id, round_name: roundName,
+                        round_index: round, slot_index: slot, match_number: matchNumber++,
+                        ...(umpireId !== null && { umpire_id: umpireId }),
+                        ...(umpireId === null && { umpire_id: null }),
+                        status: isBye ? 'finished' : 'pending', version: 1,
+                        match_type: 'individual_match',
+                    });
+                    matchMetadata.push({ round, slot, isBye, byeWinnerId });
+                }
+            }
+
+            // バッチINSERT（1回のDB呼び出し）
+            const { data: batchMatchData, error: batchMatchError } = await adminClient
+                .from('matches')
+                .insert(allMatchData)
+                .select();
+
+            if (batchMatchError || !batchMatchData) {
+                return NextResponse.json(
+                    { error: '試合の作成に失敗しました', code: 'E-DB-001', details: batchMatchError?.message },
+                    { status: 500 }
+                );
+            }
+
+            for (let i = 0; i < batchMatchData.length; i++) {
+                const match = batchMatchData[i] as { id: string; round_index: number; slot_index: number };
+                insertedMatches.push(match);
+                if (matchMetadata[i].isBye && matchMetadata[i].byeWinnerId) {
+                    byeMatchIds.push({ matchId: match.id, winnerId: matchMetadata[i].byeWinnerId! });
                 }
             }
         }
 
-        // BYE試合（足長）: 勝者確定として match_scores を挿入
-        for (const { matchId, winnerId } of byeMatchIds) {
-            const { error: scoreError } = await adminClient.from('match_scores').insert({
+        // BYE試合（足長）: 勝者確定として match_scores をバッチINSERT
+        if (byeMatchIds.length > 0) {
+            const byeScores = byeMatchIds.map(({ matchId, winnerId }) => ({
                 match_id: matchId,
                 game_count_a: 1,
                 game_count_b: 0,
                 winner_id: winnerId,
                 ended_at: new Date().toISOString(),
                 winning_reason: 'DEFAULT',
-            } as Record<string, unknown>);
+            }));
+            const { error: scoreError } = await adminClient.from('match_scores').insert(byeScores as Record<string, unknown>[]);
             if (scoreError) {
-                console.error('BYE match_scores insert error:', scoreError);
+                console.error('BYE match_scores batch insert error:', scoreError);
             }
         }
 
         // next_match_id と winner_source_match_a/b を設定
-        for (let i = 0; i < insertedMatches.length; i++) {
-            const match = insertedMatches[i];
-            if (match.round_index === roundCount) continue;
+        // インメモリでマッピングを構築してからバッチUPDATE
+        const nextMatchUpdates: { id: string; next_match_id: string }[] = [];
+        const sourceUpdates: { id: string; winner_source_match_a?: string; winner_source_match_b?: string }[] = [];
+        // 次ラウンドの試合を素早く検索するためのマップ
+        const matchByRoundSlot = new Map<string, any>();
+        for (const match of insertedMatches) {
+            matchByRoundSlot.set(`${match.round_index}:${match.slot_index}`, match);
+        }
 
+        for (const match of insertedMatches) {
+            if (match.round_index === roundCount) continue;
             const nextRound = match.round_index + 1;
             const nextSlot = Math.floor(match.slot_index / 2);
-            const nextMatch = insertedMatches.find(
-                (m) => m.round_index === nextRound && m.slot_index === nextSlot
-            );
+            const nextMatch = matchByRoundSlot.get(`${nextRound}:${nextSlot}`);
 
             if (nextMatch) {
+                nextMatchUpdates.push({ id: match.id, next_match_id: nextMatch.id });
                 const isSlotA = match.slot_index % 2 === 0;
-                await adminClient
-                    .from('matches')
-                    .update({ next_match_id: nextMatch.id } as Record<string, unknown>)
-                    .eq('id', match.id);
-                await adminClient
-                    .from('matches')
-                    .update(
-                        (isSlotA
-                            ? { winner_source_match_a: match.id }
-                            : { winner_source_match_b: match.id }) as Record<string, unknown>
-                    )
-                    .eq('id', nextMatch.id);
+                const existing = sourceUpdates.find((u) => u.id === nextMatch.id);
+                if (existing) {
+                    if (isSlotA) existing.winner_source_match_a = match.id;
+                    else existing.winner_source_match_b = match.id;
+                } else {
+                    sourceUpdates.push({
+                        id: nextMatch.id,
+                        ...(isSlotA ? { winner_source_match_a: match.id } : { winner_source_match_b: match.id }),
+                    });
+                }
             }
         }
 
-        // match_slots: 1回戦は entry/bye、2回戦以降は winner で紐付け
+        // next_match_idのバッチ更新（個別UPDATEが必要だが、Promise.allで並列化）
+        await Promise.all([
+            ...nextMatchUpdates.map(({ id: matchId, next_match_id }) =>
+                adminClient.from('matches').update({ next_match_id } as Record<string, unknown>).eq('id', matchId)
+            ),
+            ...sourceUpdates.map(({ id: matchId, ...fields }) =>
+                adminClient.from('matches').update(fields as Record<string, unknown>).eq('id', matchId)
+            ),
+        ]);
+
+        // match_slots: 1回戦は entry/bye をまとめてバッチINSERT
         const round1Matches = insertedMatches.filter((m) => m.round_index === 1);
+        const allRound1Slots: Record<string, unknown>[] = [];
         for (const match of round1Matches) {
             const slotIndex = match.slot_index as number;
             const entryA = seededEntries[slotIndex] ?? null;
@@ -530,67 +618,42 @@ export async function generateDraw(id: string, request?: Request) {
             const entryIdA = entryA && typeof entryA === 'object' && 'id' in entryA ? (entryA as { id: string }).id : undefined;
             const entryIdB = entryB && typeof entryB === 'object' && 'id' in entryB ? (entryB as { id: string }).id : undefined;
 
-            const slotsToInsert: Array<{
-                match_id: string;
-                slot_number: number;
-                source_type: 'entry' | 'bye';
-                entry_id?: string;
-                placeholder_label?: string;
-            }> = [];
             if (entryIdA) {
-                slotsToInsert.push({ match_id: match.id, slot_number: 1, source_type: 'entry', entry_id: entryIdA });
+                allRound1Slots.push({ match_id: match.id, slot_number: 1, source_type: 'entry', entry_id: entryIdA });
             } else {
-                slotsToInsert.push({ match_id: match.id, slot_number: 1, source_type: 'bye', placeholder_label: 'BYE' });
+                allRound1Slots.push({ match_id: match.id, slot_number: 1, source_type: 'bye', placeholder_label: 'BYE' });
             }
             if (entryIdB) {
-                slotsToInsert.push({ match_id: match.id, slot_number: 2, source_type: 'entry', entry_id: entryIdB });
+                allRound1Slots.push({ match_id: match.id, slot_number: 2, source_type: 'entry', entry_id: entryIdB });
             } else {
-                slotsToInsert.push({ match_id: match.id, slot_number: 2, source_type: 'bye', placeholder_label: 'BYE' });
-            }
-
-            const { error: slotsError } = await adminClient.from('match_slots').insert(slotsToInsert as Record<string, unknown>[]);
-            if (slotsError) {
-                console.error('Match slots insert error (round 1):', slotsError.message);
-                break;
+                allRound1Slots.push({ match_id: match.id, slot_number: 2, source_type: 'bye', placeholder_label: 'BYE' });
             }
         }
 
-        const laterMatches = insertedMatches.filter((m) => m.round_index >= 2);
-        for (const match of laterMatches) {
-            const { data: row } = await adminClient
-                .from('matches')
-                .select('winner_source_match_a, winner_source_match_b')
-                .eq('id', match.id)
-                .single();
-            const data = row as { winner_source_match_a: string | null; winner_source_match_b: string | null } | null;
-            if (!data) continue;
+        if (allRound1Slots.length > 0) {
+            const { error: slotsError } = await adminClient.from('match_slots').insert(allRound1Slots);
+            if (slotsError) {
+                console.error('Match slots batch insert error (round 1):', slotsError.message);
+            }
+        }
 
-            const slotsToInsert: Array<{
-                match_id: string;
-                slot_number: number;
-                source_type: 'winner';
-                source_match_id: string;
-            }> = [];
-            if (data.winner_source_match_a) {
-                slotsToInsert.push({
-                    match_id: match.id,
-                    slot_number: 1,
-                    source_type: 'winner',
-                    source_match_id: data.winner_source_match_a,
+        // 2回戦以降のmatch_slots: インメモリのsourceUpdatesから生成してバッチINSERT
+        const laterSlots: Record<string, unknown>[] = [];
+        for (const update of sourceUpdates) {
+            if (update.winner_source_match_a) {
+                laterSlots.push({
+                    match_id: update.id, slot_number: 1, source_type: 'winner', source_match_id: update.winner_source_match_a,
                 });
             }
-            if (data.winner_source_match_b) {
-                slotsToInsert.push({
-                    match_id: match.id,
-                    slot_number: 2,
-                    source_type: 'winner',
-                    source_match_id: data.winner_source_match_b,
+            if (update.winner_source_match_b) {
+                laterSlots.push({
+                    match_id: update.id, slot_number: 2, source_type: 'winner', source_match_id: update.winner_source_match_b,
                 });
             }
-            if (slotsToInsert.length > 0) {
-                const { error: slotsError } = await adminClient.from('match_slots').insert(slotsToInsert as Record<string, unknown>[]);
-                if (slotsError) console.error('Match slots insert error (round 2+):', slotsError.message);
-            }
+        }
+        if (laterSlots.length > 0) {
+            const { error: slotsError } = await adminClient.from('match_slots').insert(laterSlots);
+            if (slotsError) console.error('Match slots batch insert error (round 2+):', slotsError.message);
         }
 
         for (const { matchId, winnerId } of byeMatchIds) {
@@ -609,14 +672,17 @@ export async function generateDraw(id: string, request?: Request) {
             }
         }
 
-        return NextResponse.json({
+        const payload = {
             message: 'ドローを生成しました',
             phase_id: phase.id,
             matches_count: insertedMatches.length,
+            entry_count: entriesForBracket.length,
             bracket_size: N,
             bye_count: B,
             recommended_seed_count: S,
-        });
+        };
+        console.log('[draw/generate]', payload);
+        return NextResponse.json(payload);
     } catch (error) {
         console.error('Generate draw error:', error);
         const message = error instanceof Error ? error.message : '不明なエラー';

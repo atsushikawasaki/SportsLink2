@@ -10,8 +10,26 @@ const PUBLIC_API_PREFIXES = [
 
 const CSRF_COOKIE_NAME = 'csrf_token';
 
+const PUBLIC_PAGE_PREFIXES = [
+    '/',
+    '/login',
+    '/signup',
+    '/consent',
+    '/privacy',
+    '/terms',
+    '/public-tournaments',
+    '/support',
+];
+
 function isPublicApiPath(pathname: string): boolean {
     return PUBLIC_API_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'));
+}
+
+function isProtectedPath(pathname: string): boolean {
+    if (pathname === '/') return false;
+    return !PUBLIC_PAGE_PREFIXES.some(
+        (p) => pathname === p || (p !== '/' && pathname.startsWith(p + '/'))
+    );
 }
 
 function generateCsrfToken(): string {
@@ -62,6 +80,22 @@ export async function updateSession(request: NextRequest) {
         });
 
         const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+        if (!pathname.startsWith('/api/') && isProtectedPath(pathname) && !user) {
+            const loginUrl = new URL('/login', request.url);
+            loginUrl.searchParams.set('returnUrl', pathname);
+            const redirectResponse = NextResponse.redirect(loginUrl);
+            if (!request.cookies.get(CSRF_COOKIE_NAME)?.value) {
+                const token = generateCsrfToken();
+                redirectResponse.cookies.set(CSRF_COOKIE_NAME, token, {
+                    path: '/',
+                    sameSite: 'strict',
+                    maxAge: 60 * 60 * 24 * 7,
+                    httpOnly: false,
+                });
+            }
+            return redirectResponse;
+        }
 
         if (pathname.startsWith('/api/')) {
             if (isStateChangingMethod(request.method) && !isPublicApiPath(pathname)) {

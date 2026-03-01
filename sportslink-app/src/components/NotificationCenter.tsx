@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { confirmAsync } from '@/lib/toast';
 import { Bell, X, Check, Trash2 } from 'lucide-react';
+import AuthKeyDisplay from '@/components/AuthKeyDisplay';
 import { useNotificationStore, type Notification } from '@/features/notifications/hooks/useNotificationStore';
 import { useRouter } from 'next/navigation';
 
@@ -74,10 +76,15 @@ export default function NotificationCenter() {
             </button>
 
             {isOpen && (
-                <div className="absolute right-0 mt-2 w-96 bg-slate-800 rounded-lg shadow-xl border border-slate-700 z-50 max-h-[600px] overflow-hidden flex flex-col">
+                <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] sm:w-96 bg-slate-800 rounded-lg shadow-xl border border-slate-700 z-50 max-h-[600px] overflow-hidden flex flex-col">
                     {/* Header */}
                     <div className="flex items-center justify-between p-4 border-b border-slate-700">
-                        <h3 className="text-lg font-semibold text-white">通知</h3>
+                        <button
+                            onClick={() => { setIsOpen(false); router.push('/notifications'); }}
+                            className="text-lg font-semibold text-white hover:text-blue-400 transition-colors"
+                        >
+                            通知
+                        </button>
                         <div className="flex items-center gap-2">
                             {unreadCount > 0 && (
                                 <button
@@ -90,10 +97,13 @@ export default function NotificationCenter() {
                             )}
                             {notifications.length > 0 && (
                                 <button
-                                    onClick={() => {
-                                        if (confirm('すべての通知を削除しますか？')) {
-                                            deleteAllNotifications();
-                                        }
+                                    onClick={async () => {
+                                        const ok = await confirmAsync({
+                                            title: '確認',
+                                            message: 'すべての通知を削除しますか？',
+                                            confirmLabel: '削除',
+                                        });
+                                        if (ok) deleteAllNotifications();
                                     }}
                                     className="p-1 text-slate-400 hover:text-red-400 transition-colors"
                                     title="すべて削除"
@@ -141,9 +151,7 @@ export default function NotificationCenter() {
                                                 {notification.type === 'auth_key' && notification.data?.day_token && (
                                                     <div className="mt-2 p-2 bg-blue-500/20 rounded border border-blue-500/30">
                                                         <p className="text-xs text-slate-300 mb-1">認証キー</p>
-                                                        <p className="text-2xl font-bold text-blue-400 font-mono">
-                                                            {notification.data.day_token}
-                                                        </p>
+                                                        <AuthKeyDisplay token={notification.data.day_token} size="sm" />
                                                     </div>
                                                 )}
                                                 <p className="text-xs text-slate-500 mt-2">
@@ -168,16 +176,14 @@ export default function NotificationCenter() {
                     </div>
 
                     {/* Footer */}
-                    {notifications.length > 0 && (
-                        <div className="p-2 border-t border-slate-700">
-                            <button
-                                onClick={() => router.push('/notifications')}
-                                className="w-full py-2 text-sm text-blue-400 hover:text-blue-300 transition-colors"
-                            >
-                                すべての通知を見る
-                            </button>
-                        </div>
-                    )}
+                    <div className="p-2 border-t border-slate-700">
+                        <button
+                            onClick={() => { setIsOpen(false); router.push('/notifications'); }}
+                            className="w-full py-2 text-sm text-blue-400 hover:text-blue-300 transition-colors"
+                        >
+                            すべての通知を見る
+                        </button>
+                    </div>
                 </div>
             )}
         </div>

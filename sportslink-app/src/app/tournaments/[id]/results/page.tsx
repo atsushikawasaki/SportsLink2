@@ -1,11 +1,17 @@
 'use client';
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
+import { toast, confirmAsync } from '@/lib/toast';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Search, Filter, Download, RotateCcw, Edit, CheckCircle } from 'lucide-react';
 import AppHeader from '@/components/AppHeader';
 import Breadcrumbs from '@/components/Breadcrumbs';
+import TournamentSubNav from '@/components/TournamentSubNav';
+import Modal from '@/components/ui/Modal';
+import Button from '@/components/ui/Button';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import CollapsibleFilters from '@/components/ui/CollapsibleFilters';
 import PDFExportButton from '@/components/PDFExportButton';
 import { MatchStatusFilter, isValidMatchStatusFilter } from '@/types/match.types';
 
@@ -41,6 +47,11 @@ export default function ResultsPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<MatchStatusFilter>('all');
     const [roundFilter, setRoundFilter] = useState<string>('all');
+    const [scoreEditMatchId, setScoreEditMatchId] = useState<string | null>(null);
+    const [scoreEditGameA, setScoreEditGameA] = useState('');
+    const [scoreEditGameB, setScoreEditGameB] = useState('');
+    const [scoreEditError, setScoreEditError] = useState<string | null>(null);
+    const [scoreEditSubmitting, setScoreEditSubmitting] = useState(false);
 
     const fetchData = useCallback(async () => {
         try {
@@ -85,9 +96,12 @@ export default function ResultsPage() {
     }, [fetchData, statusFilter, roundFilter, searchQuery]);
 
     const handleRevert = useCallback(async (matchId: string) => {
-        if (!confirm('この操作により、スコアの修正が可能になります。確定済みの試合も差し戻せます。続行しますか？')) {
-            return;
-        }
+        const ok = await confirmAsync({
+            title: '確認',
+            message: 'この操作により、スコアの修正が可能になります。確定済みの試合も差し戻せます。続行しますか？',
+            confirmLabel: '差し戻す',
+        });
+        if (!ok) return;
 
         try {
             const response = await fetch(`/api/matches/${matchId}/revert`, {
@@ -96,21 +110,24 @@ export default function ResultsPage() {
 
             const result = await response.json();
             if (!response.ok) {
-                alert(result.error || '試合の差し戻しに失敗しました');
+                toast.error(result.error || '試合の差し戻しに失敗しました');
                 return;
             }
 
-            alert('試合を差し戻しました');
+            toast.success('試合を差し戻しました');
             fetchData();
-        } catch (err) {
-            alert('試合の差し戻しに失敗しました');
+        } catch {
+            toast.error('試合の差し戻しに失敗しました');
         }
     }, [fetchData]);
 
     const handleConfirm = useCallback(async (matchId: string) => {
-        if (!confirm('試合を確定しますか？確定後はスコアの変更ができなくなります。')) {
-            return;
-        }
+        const ok = await confirmAsync({
+            title: '確認',
+            message: '試合を確定しますか？確定後はスコアの変更ができなくなります。',
+            confirmLabel: '確定',
+        });
+        if (!ok) return;
 
         try {
             const response = await fetch(`/api/matches/${matchId}/confirm`, {
@@ -119,73 +136,90 @@ export default function ResultsPage() {
 
             const result = await response.json();
             if (!response.ok) {
-                alert(result.error || '試合の確定に失敗しました');
+                toast.error(result.error || '試合の確定に失敗しました');
                 return;
             }
 
-            alert('試合を確定しました');
+            toast.success('試合を確定しました');
             fetchData();
-        } catch (err) {
-            alert('試合の確定に失敗しました');
+        } catch {
+            toast.error('試合の確定に失敗しました');
         }
     }, [fetchData]);
 
-    const handleDirectScoreEdit = useCallback(async (matchId: string) => {
+    const openScoreEditModal = useCallback((matchId: string) => {
         const match = matches.find((m) => m.id === matchId);
         if (match?.is_confirmed) {
-            alert('確定済みの試合はスコアを修正できません。先に差し戻してください。');
+            toast.error('確定済みの試合はスコアを修正できません。先に差し戻してください。');
+            return;
+        }
+        const scores = Array.isArray(match?.match_scores) ? match?.match_scores[0] : match?.match_scores;
+        setScoreEditMatchId(matchId);
+        setScoreEditGameA(String(scores?.game_count_a ?? 0));
+        setScoreEditGameB(String(scores?.game_count_b ?? 0));
+        setScoreEditError(null);
+    }, [matches]);
+
+    const closeScoreEditModal = useCallback(() => {
+        setScoreEditMatchId(null);
+        setScoreEditGameA('');
+        setScoreEditGameB('');
+        setScoreEditError(null);
+    }, []);
+
+    const handleScoreEditSubmit = useCallback(async () => {
+        if (!scoreEditMatchId) return;
+        setScoreEditError(null);
+
+        const parsedA = parseInt(scoreEditGameA, 10);
+        const parsedB = parseInt(scoreEditGameB, 10);
+        if (Number.isNaN(parsedA) || Number.isNaN(parsedB) || parsedA < 0 || parsedB < 0) {
+            setScoreEditError('ゲームカウントは0以上の数値で入力してください');
             return;
         }
 
-        const gameCountA = prompt('チームAのゲームカウントを入力してください:');
-        const gameCountB = prompt('チームBのゲームカウントを入力してください:');
-
-        if (gameCountA === null || gameCountB === null) {
-            return;
-        }
-
-        if (!confirm('スコアを直接修正しますか？')) {
-            return;
-        }
-
+        setScoreEditSubmitting(true);
         try {
-            const response = await fetch(`/api/scoring/matches/${matchId}/score`, {
+            const response = await fetch(`/api/scoring/matches/${scoreEditMatchId}/score`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    game_count_a: parseInt(gameCountA),
-                    game_count_b: parseInt(gameCountB),
+                    game_count_a: parsedA,
+                    game_count_b: parsedB,
                 }),
             });
 
             const result = await response.json();
             if (!response.ok) {
-                alert(result.error || 'スコアの修正に失敗しました');
+                setScoreEditError(result.error || 'スコアの修正に失敗しました');
                 return;
             }
 
-            alert('スコアを修正しました');
+            toast.success('スコアを修正しました');
+            closeScoreEditModal();
             fetchData();
-        } catch (err) {
-            alert('スコアの修正に失敗しました');
+        } catch {
+            setScoreEditError('スコアの修正に失敗しました');
+        } finally {
+            setScoreEditSubmitting(false);
         }
-    }, [matches, fetchData]);
+    }, [scoreEditMatchId, scoreEditGameA, scoreEditGameB, closeScoreEditModal, fetchData]);
 
     const handleCSVExport = useCallback(async () => {
         try {
             const response = await fetch(`/api/tournaments/${tournamentId}/results/export`);
             if (!response.ok) {
-                alert('CSVエクスポートに失敗しました');
+                toast.error('CSVエクスポートに失敗しました');
                 return;
             }
 
             const data = await response.json();
             // CSV形式に変換
             const csvHeader = 'ラウンド,試合番号,チームA,チームB,スコアA,スコアB,最終スコア\n';
-            const csvRows = data.matches?.map((match: Match) => {
-                const teamA = match.match_pairs?.[0]?.teams?.name || 'N/A';
-                const teamB = match.match_pairs?.[1]?.teams?.name || 'N/A';
-                const scores = Array.isArray(match.match_scores) ? match.match_scores[0] : match.match_scores;
+            const csvRows = (data.matches ?? []).map((match: Match) => {
+                const teamA = match.match_pairs?.length > 0 ? (match.match_pairs[0]?.teams?.name || 'N/A') : 'N/A';
+                const teamB = match.match_pairs?.length >= 2 ? (match.match_pairs[1]?.teams?.name || 'N/A') : 'N/A';
+                const scores = Array.isArray(match.match_scores) && match.match_scores.length > 0 ? match.match_scores[0] : match.match_scores;
                 return `${match.round_name},${match.match_number},${teamA},${teamB},${scores?.game_count_a || 0},${scores?.game_count_b || 0},${scores?.final_score || ''}\n`;
             }).join('') || '';
 
@@ -199,8 +233,8 @@ export default function ResultsPage() {
             a.click();
             window.URL.revokeObjectURL(url);
             document.body.removeChild(a);
-        } catch (err) {
-            alert('CSVエクスポートに失敗しました');
+        } catch {
+            toast.error('CSVエクスポートに失敗しました');
         }
     }, [tournamentId]);
 
@@ -214,7 +248,7 @@ export default function ResultsPage() {
     if (loading) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cyan-400"></div>
+                <LoadingSpinner />
             </div>
         );
     }
@@ -234,7 +268,7 @@ export default function ResultsPage() {
                     />
                     <div className="flex items-center justify-between mt-4">
                         <div>
-                            <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
+                            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
                                 試合結果
                             </h1>
                             {tournament && <p className="text-slate-400 mt-2">{tournament.name}</p>}
@@ -252,9 +286,11 @@ export default function ResultsPage() {
                     </div>
                 </div>
 
-                {/* Filters */}
-                <div className="mb-6 flex flex-wrap gap-4">
-                    <div className="relative flex-1 max-w-md">
+                <TournamentSubNav tournamentId={tournamentId} />
+
+                <CollapsibleFilters>
+                <div className="flex flex-wrap gap-4">
+                    <div className="relative flex-1 min-w-[200px] max-w-md">
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
                         <input
                             type="text"
@@ -296,6 +332,7 @@ export default function ResultsPage() {
                         ))}
                     </select>
                 </div>
+                </CollapsibleFilters>
 
                 {/* Matches List */}
                 <div className="space-y-4">
@@ -378,7 +415,7 @@ export default function ResultsPage() {
                                             </button>
                                             {!match.is_confirmed && (
                                                 <button
-                                                    onClick={() => handleDirectScoreEdit(match.id)}
+                                                    onClick={() => openScoreEditModal(match.id)}
                                                     className="flex items-center gap-1 px-4 py-2 bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30 transition-colors text-sm"
                                                 >
                                                     <Edit className="w-4 h-4" />
@@ -398,6 +435,53 @@ export default function ResultsPage() {
                         <p className="text-slate-400">条件に一致する試合がありません</p>
                     </div>
                 )}
+
+                {/* スコア修正モーダル */}
+                <Modal
+                    isOpen={!!scoreEditMatchId}
+                    onClose={closeScoreEditModal}
+                    title="スコアを直接修正"
+                >
+                    <div className="space-y-4">
+                        <div>
+                            <label htmlFor="scoreA" className="block text-sm font-medium text-slate-300 mb-2">
+                                チームAのゲームカウント
+                            </label>
+                            <input
+                                id="scoreA"
+                                type="number"
+                                min={0}
+                                value={scoreEditGameA}
+                                onChange={(e) => setScoreEditGameA(e.target.value)}
+                                className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+                        <div>
+                            <label htmlFor="scoreB" className="block text-sm font-medium text-slate-300 mb-2">
+                                チームBのゲームカウント
+                            </label>
+                            <input
+                                id="scoreB"
+                                type="number"
+                                min={0}
+                                value={scoreEditGameB}
+                                onChange={(e) => setScoreEditGameB(e.target.value)}
+                                className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+                        {scoreEditError && (
+                            <p className="text-sm text-red-400">{scoreEditError}</p>
+                        )}
+                        <div className="flex gap-2 justify-end pt-2">
+                            <Button variant="secondary" onClick={closeScoreEditModal}>
+                                キャンセル
+                            </Button>
+                            <Button onClick={handleScoreEditSubmit} isLoading={scoreEditSubmitting}>
+                                修正
+                            </Button>
+                        </div>
+                    </div>
+                </Modal>
             </div>
         </div>
     );

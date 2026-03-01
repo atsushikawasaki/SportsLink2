@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { toast, confirmAsync } from '@/lib/toast';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Edit, Settings, Users, Trophy, Calendar, Play, Award, Eye } from 'lucide-react';
+import { Edit, Settings, Users, Trophy, Calendar, Play, Award, Eye, Trash2, CheckCircle, Circle } from 'lucide-react';
 import AppHeader from '@/components/AppHeader';
 import Breadcrumbs from '@/components/Breadcrumbs';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 interface Tournament {
     id: string;
@@ -20,16 +22,30 @@ interface Tournament {
     created_at: string;
 }
 
+interface TournamentSummary {
+    entryCount: number;
+    matchCount: number;
+    finishedMatchCount: number;
+    hasDrawGenerated: boolean;
+}
+
 export default function TournamentDetailPage() {
     const params = useParams();
     const router = useRouter();
     const tournamentId = params.id as string;
 
     const [tournament, setTournament] = useState<Tournament | null>(null);
+    const [summary, setSummary] = useState<TournamentSummary>({
+        entryCount: 0,
+        matchCount: 0,
+        finishedMatchCount: 0,
+        hasDrawGenerated: false,
+    });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isPublishing, setIsPublishing] = useState(false);
     const [isFinishing, setIsFinishing] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     useEffect(() => {
         fetchTournament();
@@ -40,15 +56,37 @@ export default function TournamentDetailPage() {
             setLoading(true);
             setError(null);
 
-            const response = await fetch(`/api/tournaments/${tournamentId}`);
-            const result = await response.json();
+            const [tournamentRes, entriesRes, drawRes] = await Promise.all([
+                fetch(`/api/tournaments/${tournamentId}`),
+                fetch(`/api/tournaments/${tournamentId}/entries`),
+                fetch(`/api/tournaments/${tournamentId}/draw/tree`),
+            ]);
 
-            if (!response.ok) {
-                setError(result.error || '大会の取得に失敗しました');
+            const tournamentData = await tournamentRes.json();
+            if (!tournamentRes.ok) {
+                setError(tournamentData.error || '大会の取得に失敗しました');
                 return;
             }
+            setTournament(tournamentData);
 
-            setTournament(result);
+            let entryCount = 0;
+            if (entriesRes.ok) {
+                const entriesData = await entriesRes.json();
+                entryCount = entriesData.data?.length || 0;
+            }
+
+            let matchCount = 0;
+            let finishedMatchCount = 0;
+            let hasDrawGenerated = false;
+            if (drawRes.ok) {
+                const drawData = await drawRes.json();
+                const flatMatches = (drawData.rounds ?? []).flatMap((r: { matches: Array<{ status: string }> }) => r.matches);
+                matchCount = flatMatches.length;
+                finishedMatchCount = flatMatches.filter((m: { status: string }) => m.status === 'finished').length;
+                hasDrawGenerated = matchCount > 0;
+            }
+
+            setSummary({ entryCount, matchCount, finishedMatchCount, hasDrawGenerated });
         } catch (err) {
             console.error('Failed to fetch tournament:', err);
             setError('大会の取得に失敗しました');
@@ -58,9 +96,8 @@ export default function TournamentDetailPage() {
     };
 
     const handlePublish = async () => {
-        if (!confirm('大会を公開しますか？')) {
-            return;
-        }
+        const ok = await confirmAsync({ title: '確認', message: '大会を公開しますか？', confirmLabel: '公開' });
+        if (!ok) return;
 
         try {
             setIsPublishing(true);
@@ -70,22 +107,26 @@ export default function TournamentDetailPage() {
 
             if (!response.ok) {
                 const result = await response.json();
-                alert(result.error || '大会の公開に失敗しました');
+                toast.error(result.error || '大会の公開に失敗しました');
                 return;
             }
 
+            toast.success('大会を公開しました');
             fetchTournament();
-        } catch (err) {
-            alert('大会の公開に失敗しました');
+        } catch {
+            toast.error('大会の公開に失敗しました');
         } finally {
             setIsPublishing(false);
         }
     };
 
     const handleFinish = async () => {
-        if (!confirm('大会を終了しますか？終了後は変更できません。')) {
-            return;
-        }
+        const ok = await confirmAsync({
+            title: '確認',
+            message: '大会を終了しますか？終了後は変更できません。',
+            confirmLabel: '終了',
+        });
+        if (!ok) return;
 
         try {
             setIsFinishing(true);
@@ -95,15 +136,45 @@ export default function TournamentDetailPage() {
 
             if (!response.ok) {
                 const result = await response.json();
-                alert(result.error || '大会の終了に失敗しました');
+                toast.error(result.error || '大会の終了に失敗しました');
                 return;
             }
 
+            toast.success('大会を終了しました');
             fetchTournament();
-        } catch (err) {
-            alert('大会の終了に失敗しました');
+        } catch {
+            toast.error('大会の終了に失敗しました');
         } finally {
             setIsFinishing(false);
+        }
+    };
+
+    const handleDelete = async () => {
+        const ok = await confirmAsync({
+            title: '大会を削除',
+            message: `「${tournament?.name}」を削除しますか？この操作は取り消せません。`,
+            confirmLabel: '削除する',
+        });
+        if (!ok) return;
+
+        try {
+            setIsDeleting(true);
+            const response = await fetch(`/api/tournaments/${tournamentId}`, {
+                method: 'DELETE',
+            });
+
+            if (!response.ok) {
+                const result = await response.json();
+                toast.error(result.error || '大会の削除に失敗しました');
+                return;
+            }
+
+            toast.success('大会を削除しました');
+            router.push('/tournaments');
+        } catch {
+            toast.error('大会の削除に失敗しました');
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -144,10 +215,34 @@ export default function TournamentDetailPage() {
         }
     };
 
+    // Step progress logic
+    const getStepStatus = (stepIndex: number): 'done' | 'current' | 'upcoming' => {
+        // Steps: 0=Entry, 1=Draw, 2=Assign, 3=Publish, 4=Results
+        if (tournament?.status === 'finished') return 'done';
+        if (tournament?.status === 'published') {
+            if (stepIndex <= 3) return 'done';
+            if (stepIndex === 4) return summary.finishedMatchCount > 0 ? 'current' : 'upcoming';
+        }
+        // draft
+        if (stepIndex === 0) return summary.entryCount > 0 ? 'done' : 'current';
+        if (stepIndex === 1) return summary.hasDrawGenerated ? 'done' : summary.entryCount > 0 ? 'current' : 'upcoming';
+        if (stepIndex === 2) return summary.hasDrawGenerated ? 'current' : 'upcoming';
+        if (stepIndex === 3) return 'upcoming';
+        return 'upcoming';
+    };
+
+    const steps = [
+        { label: 'エントリー', href: `entries` },
+        { label: 'ドロー', href: `draw` },
+        { label: '割当', href: `assignments` },
+        { label: '公開', href: null },
+        { label: '結果', href: `results` },
+    ];
+
     if (loading) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-400"></div>
+                <LoadingSpinner />
             </div>
         );
     }
@@ -226,13 +321,25 @@ export default function TournamentDetailPage() {
                                 )}
                             </div>
                         </div>
-                        <Link
-                            href={`/tournaments/${tournamentId}/edit`}
-                            className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors"
-                        >
-                            <Edit className="w-4 h-4" />
-                            編集
-                        </Link>
+                        <div className="flex items-center gap-2">
+                            <Link
+                                href={`/tournaments/${tournamentId}/edit`}
+                                className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors"
+                            >
+                                <Edit className="w-4 h-4" />
+                                編集
+                            </Link>
+                            {tournament.status === 'draft' && (
+                                <button
+                                    onClick={handleDelete}
+                                    disabled={isDeleting}
+                                    className="flex items-center gap-2 px-4 py-2 text-red-400 hover:text-white hover:bg-red-500/20 rounded-lg transition-colors disabled:opacity-50"
+                                    title="大会を削除"
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                </button>
+                            )}
+                        </div>
                     </div>
 
                     {/* Action Buttons */}
@@ -257,6 +364,73 @@ export default function TournamentDetailPage() {
                                 {isFinishing ? '終了中...' : '大会を終了'}
                             </button>
                         )}
+                    </div>
+                </div>
+
+                {/* Step Progress Bar (Issue K) */}
+                <div className="bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50 p-6 mb-8">
+                    <h2 className="text-sm font-medium text-slate-400 mb-4">運営フロー</h2>
+                    <div className="flex items-center gap-0">
+                        {steps.map((step, idx) => {
+                            const status = getStepStatus(idx);
+                            const StepContent = () => (
+                                <div className="flex flex-col items-center gap-1.5">
+                                    {status === 'done' ? (
+                                        <CheckCircle className="w-6 h-6 text-green-400" />
+                                    ) : status === 'current' ? (
+                                        <div className="w-6 h-6 rounded-full border-2 border-blue-400 bg-blue-400/20 flex items-center justify-center">
+                                            <div className="w-2 h-2 rounded-full bg-blue-400" />
+                                        </div>
+                                    ) : (
+                                        <Circle className="w-6 h-6 text-slate-600" />
+                                    )}
+                                    <span className={`text-xs font-medium ${
+                                        status === 'done' ? 'text-green-400' :
+                                        status === 'current' ? 'text-blue-400' :
+                                        'text-slate-500'
+                                    }`}>
+                                        {step.label}
+                                    </span>
+                                </div>
+                            );
+
+                            return (
+                                <div key={step.label} className="flex items-center flex-1">
+                                    {step.href ? (
+                                        <Link href={`/tournaments/${tournamentId}/${step.href}`} className="flex-shrink-0 hover:opacity-80 transition-opacity">
+                                            <StepContent />
+                                        </Link>
+                                    ) : (
+                                        <div className="flex-shrink-0">
+                                            <StepContent />
+                                        </div>
+                                    )}
+                                    {idx < steps.length - 1 && (
+                                        <div className={`flex-1 h-0.5 mx-2 ${
+                                            getStepStatus(idx) === 'done' ? 'bg-green-400/50' : 'bg-slate-700'
+                                        }`} />
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Summary Stats (Issue B) */}
+                <div className="grid grid-cols-3 gap-4 mb-8">
+                    <div className="bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50 p-4 text-center">
+                        <p className="text-2xl font-bold text-white">{summary.entryCount}</p>
+                        <p className="text-slate-400 text-sm">エントリー</p>
+                    </div>
+                    <div className="bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50 p-4 text-center">
+                        <p className="text-2xl font-bold text-white">{summary.matchCount}</p>
+                        <p className="text-slate-400 text-sm">試合数</p>
+                    </div>
+                    <div className="bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50 p-4 text-center">
+                        <p className="text-2xl font-bold text-white">
+                            {summary.matchCount > 0 ? `${summary.finishedMatchCount}/${summary.matchCount}` : '-'}
+                        </p>
+                        <p className="text-slate-400 text-sm">完了試合</p>
                     </div>
                 </div>
 
@@ -344,4 +518,3 @@ export default function TournamentDetailPage() {
         </div>
     );
 }
-

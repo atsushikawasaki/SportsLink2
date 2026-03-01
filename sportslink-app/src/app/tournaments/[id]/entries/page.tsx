@@ -1,10 +1,17 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { toast } from '@/lib/toast';
 import { useParams } from 'next/navigation';
-import { Plus, Upload, Download, CheckCircle, XCircle, Search } from 'lucide-react';
+import { Plus, Upload, Download, CheckCircle, Search, Info } from 'lucide-react';
 import AppHeader from '@/components/AppHeader';
 import Breadcrumbs from '@/components/Breadcrumbs';
+import TournamentSubNav from '@/components/TournamentSubNav';
+import AuthKeyDisplay from '@/components/AuthKeyDisplay';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 interface Team {
     id: string;
@@ -36,6 +43,22 @@ interface Entry {
 
 type MatchFormat = 'team_doubles_3' | 'team_doubles_4_singles_1' | 'individual_doubles' | 'individual_singles' | null;
 
+const playerEntrySchema = z
+    .object({
+        entryKind: z.enum(['singles', 'doubles']),
+        region_name: z.string().optional(),
+        player1_name: z.string().min(1, '選手1氏名を入力してください'),
+        player1_affiliation: z.string().optional(),
+        player2_name: z.string().optional(),
+        player2_affiliation: z.string().optional(),
+    })
+    .refine(
+        (data) => data.entryKind !== 'doubles' || (data.player2_name && data.player2_name.trim().length > 0),
+        { message: '選手2氏名を入力してください', path: ['player2_name'] }
+    );
+
+type PlayerEntryInput = z.infer<typeof playerEntrySchema>;
+
 interface TournamentBasic {
     id: string;
     name: string;
@@ -57,15 +80,19 @@ export default function EntriesPage() {
     const [showTeamModal, setShowTeamModal] = useState(false);
     const [showPlayerModal, setShowPlayerModal] = useState(false);
     const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
-    const [playerForm, setPlayerForm] = useState({
-        entryKind: 'singles' as 'singles' | 'doubles',
-        region_name: '',
-        player1_name: '',
-        player1_affiliation: '',
-        player2_name: '',
-        player2_affiliation: '',
-    });
     const [teamEntryRegion, setTeamEntryRegion] = useState('');
+
+    const playerForm = useForm<PlayerEntryInput>({
+        resolver: zodResolver(playerEntrySchema),
+        defaultValues: {
+            entryKind: 'singles',
+            region_name: '',
+            player1_name: '',
+            player1_affiliation: '',
+            player2_name: '',
+            player2_affiliation: '',
+        },
+    });
     const [entrySubmitLoading, setEntrySubmitLoading] = useState(false);
     const [entrySubmitError, setEntrySubmitError] = useState<string | null>(null);
     const [csvImportMode, setCsvImportMode] = useState<'append' | 'update' | 'replace'>('append');
@@ -132,9 +159,9 @@ export default function EntriesPage() {
                 const contentType = response.headers.get('content-type');
                 if (contentType && contentType.includes('application/json')) {
                     const errorData = await response.json();
-                    alert(`CSVエクスポートに失敗しました: ${errorData.error || '不明なエラー'}`);
+                    toast.error(`CSVエクスポートに失敗しました: ${errorData.error || '不明なエラー'}`);
                 } else {
-                    alert(`CSVエクスポートに失敗しました (ステータス: ${response.status})`);
+                    toast.error(`CSVエクスポートに失敗しました (ステータス: ${response.status})`);
                 }
                 return;
             }
@@ -150,7 +177,7 @@ export default function EntriesPage() {
             document.body.removeChild(a);
         } catch (err) {
             console.error('CSV export error:', err);
-            alert(`CSVエクスポートに失敗しました: ${err instanceof Error ? err.message : '不明なエラー'}`);
+            toast.error(`CSVエクスポートに失敗しました: ${err instanceof Error ? err.message : '不明なエラー'}`);
         }
     };
 
@@ -161,6 +188,7 @@ export default function EntriesPage() {
         try {
             const formData = new FormData();
             formData.append('file', file);
+            formData.append('mode', csvImportMode || 'append');
 
             const response = await fetch(`/api/tournaments/${tournamentId}/entries/import`, {
                 method: 'POST',
@@ -174,17 +202,17 @@ export default function EntriesPage() {
                     const errorMessages = result.validationErrors
                         .map((err: { row: number; message: string }) => `行${err.row}: ${err.message}`)
                         .join('\n');
-                    alert(`CSVファイルにバリデーションエラーがあります:\n\n${errorMessages}`);
+                    toast.error(`CSVファイルにバリデーションエラーがあります: ${errorMessages}`);
                 } else {
-                alert(result.error || 'CSVインポートに失敗しました');
+                    toast.error(result.error || 'CSVインポートに失敗しました');
                 }
                 return;
             }
 
-            alert('CSVインポートが完了しました');
+            toast.success('CSVインポートが完了しました');
             fetchData();
         } catch {
-            alert('CSVインポートに失敗しました');
+            toast.error('CSVインポートに失敗しました');
         }
     };
 
@@ -196,11 +224,11 @@ export default function EntriesPage() {
 
             const result = await response.json();
             if (!response.ok) {
-                alert(result.error || 'チェックインに失敗しました');
+                toast.error(result.error || 'チェックインに失敗しました');
                 return;
             }
 
-            // 認証キーは通知センターに1回だけ表示（alertでは出さない）
+            // 認証キーは通知センターに1回だけ表示
             if (result.day_token) {
                 const { useNotificationStore } = await import('@/features/notifications/hooks/useNotificationStore');
                 const { addNotification } = useNotificationStore.getState();
@@ -215,15 +243,14 @@ export default function EntriesPage() {
                 });
             }
 
-            alert('チェックイン完了しました');
+            toast.success('チェックイン完了しました');
             fetchData();
         } catch {
-            alert('チェックインに失敗しました');
+            toast.error('チェックインに失敗しました');
         }
     };
 
     const isTeamMatch = tournament?.match_format === 'team_doubles_3' || tournament?.match_format === 'team_doubles_4_singles_1';
-    const isSinglesOnly = tournament?.match_format === 'individual_singles';
     const isDoublesOnly = tournament?.match_format === 'individual_doubles' || tournament?.match_format === 'team_doubles_3';
     const isMixedFormat = tournament?.match_format === 'team_doubles_4_singles_1';
 
@@ -257,17 +284,9 @@ export default function EntriesPage() {
         }
     };
 
-    const handleSubmitPairEntry = async () => {
+    const handleSubmitPairEntry = async (data: PlayerEntryInput) => {
         if (!selectedTeam) return;
-        const { entryKind, region_name, player1_name, player1_affiliation, player2_name, player2_affiliation } = playerForm;
-        if (!player1_name.trim()) {
-            setEntrySubmitError('選手1氏名を入力してください');
-            return;
-        }
-        if (entryKind === 'doubles' && !player2_name.trim()) {
-            setEntrySubmitError('選手2氏名を入力してください');
-            return;
-        }
+        const { entryKind, region_name, player1_name, player1_affiliation, player2_name, player2_affiliation } = data;
         setEntrySubmitError(null);
         setEntrySubmitLoading(true);
         try {
@@ -277,11 +296,12 @@ export default function EntriesPage() {
                 body: JSON.stringify({
                     entry_type: entryKind,
                     team_id: selectedTeam.id,
-                    region_name: region_name.trim() || null,
+                    region_name: region_name?.trim() || null,
                     player1_name: player1_name.trim(),
-                    player1_affiliation: player1_affiliation.trim() || selectedTeam.name,
-                    player2_name: entryKind === 'doubles' ? player2_name.trim() : undefined,
-                    player2_affiliation: entryKind === 'doubles' ? (player2_affiliation.trim() || selectedTeam.name) : undefined,
+                    player1_affiliation: player1_affiliation?.trim() || selectedTeam.name,
+                    player2_name: entryKind === 'doubles' ? player2_name?.trim() : undefined,
+                    player2_affiliation:
+                        entryKind === 'doubles' ? (player2_affiliation?.trim() || selectedTeam.name) : undefined,
                 }),
             });
             const result = await res.json();
@@ -291,7 +311,7 @@ export default function EntriesPage() {
             }
             setShowPlayerModal(false);
             setSelectedTeam(null);
-            setPlayerForm({ entryKind: 'singles', region_name: '', player1_name: '', player1_affiliation: '', player2_name: '', player2_affiliation: '' });
+            playerForm.reset();
             fetchData();
         } catch {
             setEntrySubmitError('エントリーの追加に失敗しました');
@@ -303,7 +323,7 @@ export default function EntriesPage() {
     if (loading) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-400"></div>
+                <LoadingSpinner />
             </div>
         );
     }
@@ -327,6 +347,8 @@ export default function EntriesPage() {
                     {tournament && <p className="text-slate-400 mt-2">{tournament.name}</p>}
                 </div>
 
+                <TournamentSubNav tournamentId={tournamentId} />
+
                 {fetchError && (
                     <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
                         <p className="text-red-400">{fetchError}</p>
@@ -334,8 +356,12 @@ export default function EntriesPage() {
                 )}
 
                 {/* Tabs */}
-                <div className="mb-6 flex gap-2 border-b border-slate-700">
+                <div className="mb-6 flex gap-2 border-b border-slate-700" role="tablist" aria-label="エントリー管理">
                     <button
+                        role="tab"
+                        aria-selected={activeTab === 'teams'}
+                        aria-controls="panel-teams"
+                        id="tab-teams"
                         onClick={() => setActiveTab('teams')}
                         className={`px-4 py-2 font-medium transition-colors ${
                             activeTab === 'teams'
@@ -343,9 +369,13 @@ export default function EntriesPage() {
                                 : 'text-slate-400 hover:text-white'
                         }`}
                     >
-                        管理
+                        チーム管理
                     </button>
                     <button
+                        role="tab"
+                        aria-selected={activeTab === 'entries'}
+                        aria-controls="panel-entries"
+                        id="tab-entries"
                         onClick={() => setActiveTab('entries')}
                         className={`px-4 py-2 font-medium transition-colors ${
                             activeTab === 'entries'
@@ -353,7 +383,7 @@ export default function EntriesPage() {
                                 : 'text-slate-400 hover:text-white'
                         }`}
                     >
-                        一覧
+                        エントリー一覧
                     </button>
                 </div>
 
@@ -421,15 +451,36 @@ export default function EntriesPage() {
                     )}
                     <div className="flex flex-wrap items-center gap-2">
                         <span className="text-slate-300 text-sm">CSVインポート:</span>
-                        <select
-                            value={csvImportMode}
-                            onChange={(e) => setCsvImportMode(e.target.value as 'append' | 'update' | 'replace')}
-                            className="rounded-lg border border-slate-600 bg-slate-800 text-slate-200 px-3 py-2 text-sm"
-                        >
-                            <option value="append">追加（既存に足す）</option>
-                            <option value="update">更新（同一キーを上書き）</option>
-                            <option value="replace">置換（既存を無効化して差し替え）</option>
-                        </select>
+                        <div className="flex items-center gap-1">
+                            <select
+                                value={csvImportMode}
+                                onChange={(e) => setCsvImportMode(e.target.value as 'append' | 'update' | 'replace')}
+                                className="rounded-lg border border-slate-600 bg-slate-800 text-slate-200 px-3 py-2 text-sm"
+                                title={
+                                    csvImportMode === 'append'
+                                        ? '既存エントリーに追記します。重複があっても新規として追加されます。'
+                                        : csvImportMode === 'update'
+                                        ? 'region_name をキーに、同一キーの既存エントリーを上書き更新します。'
+                                        : '既存エントリーを一度無効化し、CSVの内容で差し替えます。'
+                                }
+                            >
+                                <option value="append">追加（既存に足す）</option>
+                                <option value="update">更新（同一キーを上書き）</option>
+                                <option value="replace">置換（既存を無効化して差し替え）</option>
+                            </select>
+                            <span
+                                className="text-slate-500 hover:text-slate-300 cursor-help"
+                                title={
+                                    csvImportMode === 'append'
+                                        ? '既存エントリーに追記します。重複があっても新規として追加されます。'
+                                        : csvImportMode === 'update'
+                                        ? 'region_name をキーに、同一キーの既存エントリーを上書き更新します。'
+                                        : '既存エントリーを一度無効化し、CSVの内容で差し替えます。'
+                                }
+                            >
+                                <Info className="w-4 h-4" />
+                            </span>
+                        </div>
                         <label className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors cursor-pointer">
                             <Upload className="w-4 h-4" />
                             CSV選択
@@ -452,7 +503,7 @@ export default function EntriesPage() {
 
                 {/* Content */}
                 {activeTab === 'teams' && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div id="panel-teams" role="tabpanel" aria-labelledby="tab-teams" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {teams.map((team) => (
                             <div
                                 key={team.id}
@@ -480,10 +531,11 @@ export default function EntriesPage() {
                                         setEntrySubmitError(null);
                                         setTeamEntryRegion('');
                                         const kind: 'singles' | 'doubles' =
-                                            tournament?.match_format === 'individual_doubles' || tournament?.match_format === 'team_doubles_3'
+                                            tournament?.match_format === 'individual_doubles' ||
+                                            tournament?.match_format === 'team_doubles_3'
                                                 ? 'doubles'
                                                 : 'singles';
-                                        setPlayerForm({
+                                        playerForm.reset({
                                             entryKind: kind,
                                             region_name: '',
                                             player1_name: '',
@@ -499,11 +551,21 @@ export default function EntriesPage() {
                                 </button>
                             </div>
                         ))}
+                        <a
+                            href="/teams"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex flex-col items-center justify-center p-6 bg-slate-800/50 backdrop-blur-xl rounded-xl border border-dashed border-slate-600 hover:border-blue-500 hover:bg-slate-700/30 transition-all min-h-[120px]"
+                        >
+                            <Plus className="w-8 h-8 text-slate-400 mb-2" />
+                            <span className="text-slate-400 text-sm">新しいチームを作成</span>
+                            <span className="text-slate-500 text-xs mt-1">チーム管理ページへ</span>
+                        </a>
                     </div>
                 )}
 
                 {activeTab === 'entries' && (
-                    <div className="space-y-4">
+                    <div id="panel-entries" role="tabpanel" aria-labelledby="tab-entries" className="space-y-4">
                         {searchQuery.trim() && (
                             <p className="text-sm text-slate-400">
                                 検索結果のみ表示しています（フィルター中）
@@ -541,9 +603,10 @@ export default function EntriesPage() {
                                                 {!entry.teams?.name && !entry.region_name && '\u00A0'}
                                         </p>
                                         {entry.is_checked_in && entry.day_token && (
-                                            <p className="text-blue-400 text-sm mt-1">
-                                                認証キー: {entry.day_token}
-                                            </p>
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <span className="text-slate-400 text-sm">認証キー:</span>
+                                                <AuthKeyDisplay token={entry.day_token} size="sm" />
+                                            </div>
                                         )}
                                     </div>
                                     {!entry.is_checked_in ? (
@@ -569,9 +632,9 @@ export default function EntriesPage() {
                 {/* Team Modal (簡易版) */}
                 {showTeamModal && (
                     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                        <div className="bg-slate-800 rounded-xl p-6 max-w-md w-full mx-4">
+                        <div className="bg-slate-800 rounded-xl p-6 max-w-md w-full mx-4 shadow-xl border border-slate-700 animate-fade-in">
                             <h2 className="text-xl font-semibold text-white mb-4">チーム追加</h2>
-                            <p className="text-slate-400 mb-4">チーム追加機能は実装中です</p>
+                            <p className="text-slate-400 mb-4">チームは「チーム一覧」ページで作成できます。作成後、ここでエントリーに追加できます。</p>
                             <button
                                 onClick={() => setShowTeamModal(false)}
                                 className="w-full px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors"
@@ -597,31 +660,54 @@ export default function EntriesPage() {
                                             type="text"
                                             value={teamEntryRegion}
                                             onChange={(e) => setTeamEntryRegion(e.target.value)}
-                                            className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500"
+                                            className="w-full px-4 py-3 min-h-[48px] bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                             placeholder="任意"
                                         />
                                     </div>
+                                    {entrySubmitError && (
+                                        <p className="text-red-400 text-sm mb-4">{entrySubmitError}</p>
+                                    )}
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={handleSubmitTeamEntry}
+                                            disabled={entrySubmitLoading}
+                                            className="flex-1 px-4 py-3 min-h-[48px] bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-800"
+                                        >
+                                            {entrySubmitLoading ? '追加中...' : '追加'}
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setShowPlayerModal(false);
+                                                setSelectedTeam(null);
+                                                setEntrySubmitError(null);
+                                                setTeamEntryRegion('');
+                                            }}
+                                            className="px-4 py-3 min-h-[48px] bg-slate-700 text-white rounded-lg hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-800"
+                                        >
+                                            閉じる
+                                        </button>
+                                    </div>
                                 </>
                             ) : (
-                                <>
+                                <form onSubmit={playerForm.handleSubmit(handleSubmitPairEntry)}>
                                     <h2 className="text-xl font-semibold text-white mb-4">エントリー追加 - {selectedTeam.name}</h2>
                                     {isMixedFormat && (
                                         <div className="mb-4">
                                             <span className="text-sm text-slate-400 mr-3">種目</span>
-                                            <label className="inline-flex items-center mr-4">
+                                            <label className="inline-flex items-center mr-4 cursor-pointer">
                                                 <input
                                                     type="radio"
-                                                    checked={playerForm.entryKind === 'singles'}
-                                                    onChange={() => setPlayerForm((p) => ({ ...p, entryKind: 'singles' }))}
+                                                    {...playerForm.register('entryKind')}
+                                                    value="singles"
                                                     className="mr-1"
                                                 />
                                                 <span className="text-white text-sm">シングルス</span>
                                             </label>
-                                            <label className="inline-flex items-center">
+                                            <label className="inline-flex items-center cursor-pointer">
                                                 <input
                                                     type="radio"
-                                                    checked={playerForm.entryKind === 'doubles'}
-                                                    onChange={() => setPlayerForm((p) => ({ ...p, entryKind: 'doubles' }))}
+                                                    {...playerForm.register('entryKind')}
+                                                    value="doubles"
                                                     className="mr-1"
                                                 />
                                                 <span className="text-white text-sm">ダブルス</span>
@@ -632,89 +718,90 @@ export default function EntriesPage() {
                                         <label className="block text-sm text-slate-400 mb-1">地域名（任意）</label>
                                         <input
                                             type="text"
-                                            value={playerForm.region_name}
-                                            onChange={(e) => setPlayerForm((p) => ({ ...p, region_name: e.target.value }))}
-                                            className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500"
+                                            {...playerForm.register('region_name')}
+                                            className="w-full px-4 py-3 min-h-[48px] bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            placeholder="任意"
                                         />
                                     </div>
                                     <div className="mb-4">
                                         <label className="block text-sm text-slate-400 mb-1">選手1氏名 <span className="text-red-400">*</span></label>
                                         <input
                                             type="text"
-                                            value={playerForm.player1_name}
-                                            onChange={(e) => setPlayerForm((p) => ({ ...p, player1_name: e.target.value }))}
-                                            className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white"
+                                            {...playerForm.register('player1_name')}
+                                            className={`w-full px-4 py-3 min-h-[48px] bg-slate-700 border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                                                playerForm.formState.errors.player1_name ? 'border-red-500/50' : 'border-slate-600'
+                                            }`}
                                         />
+                                        {playerForm.formState.errors.player1_name && (
+                                            <p className="mt-1 text-sm text-red-400">
+                                                {playerForm.formState.errors.player1_name.message}
+                                            </p>
+                                        )}
                                     </div>
                                     <div className="mb-4">
                                         <label className="block text-sm text-slate-400 mb-1">選手1所属</label>
                                         <input
                                             type="text"
-                                            value={playerForm.player1_affiliation}
-                                            onChange={(e) => setPlayerForm((p) => ({ ...p, player1_affiliation: e.target.value }))}
-                                            className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white"
+                                            {...playerForm.register('player1_affiliation')}
+                                            className="w-full px-4 py-3 min-h-[48px] bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                             placeholder={selectedTeam.name}
                                         />
                                     </div>
-                                    {(playerForm.entryKind === 'doubles' || isDoublesOnly) && (
+                                    {(playerForm.watch('entryKind') === 'doubles' || isDoublesOnly) && (
                                         <>
                                             <div className="mb-4">
                                                 <label className="block text-sm text-slate-400 mb-1">選手2氏名 <span className="text-red-400">*</span></label>
                                                 <input
                                                     type="text"
-                                                    value={playerForm.player2_name}
-                                                    onChange={(e) => setPlayerForm((p) => ({ ...p, player2_name: e.target.value }))}
-                                                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white"
+                                                    {...playerForm.register('player2_name')}
+                                                    className={`w-full px-4 py-3 min-h-[48px] bg-slate-700 border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                                                        playerForm.formState.errors.player2_name ? 'border-red-500/50' : 'border-slate-600'
+                                                    }`}
                                                 />
+                                                {playerForm.formState.errors.player2_name && (
+                                                    <p className="mt-1 text-sm text-red-400">
+                                                        {playerForm.formState.errors.player2_name.message}
+                                                    </p>
+                                                )}
                                             </div>
                                             <div className="mb-4">
                                                 <label className="block text-sm text-slate-400 mb-1">選手2所属</label>
                                                 <input
                                                     type="text"
-                                                    value={playerForm.player2_affiliation}
-                                                    onChange={(e) => setPlayerForm((p) => ({ ...p, player2_affiliation: e.target.value }))}
-                                                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white"
+                                                    {...playerForm.register('player2_affiliation')}
+                                                    className="w-full px-4 py-3 min-h-[48px] bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                                     placeholder={selectedTeam.name}
                                                 />
                                             </div>
                                         </>
                                     )}
-                                </>
+                                    {entrySubmitError && (
+                                        <p className="text-red-400 text-sm mb-4">{entrySubmitError}</p>
+                                    )}
+                                    <div className="flex gap-2">
+                                        <button
+                                            type="submit"
+                                            disabled={entrySubmitLoading}
+                                            className="flex-1 px-4 py-3 min-h-[48px] bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-800"
+                                        >
+                                            {entrySubmitLoading ? '追加中...' : '追加'}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setShowPlayerModal(false);
+                                                setSelectedTeam(null);
+                                                setEntrySubmitError(null);
+                                                setTeamEntryRegion('');
+                                                playerForm.reset();
+                                            }}
+                                            className="px-4 py-3 min-h-[48px] bg-slate-700 text-white rounded-lg hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-800"
+                                        >
+                                            閉じる
+                                        </button>
+                                    </div>
+                                </form>
                             )}
-                            {entrySubmitError && (
-                                <p className="text-red-400 text-sm mb-4">{entrySubmitError}</p>
-                            )}
-                            <div className="flex gap-2">
-                                {isTeamMatch ? (
-                                    <button
-                                        onClick={handleSubmitTeamEntry}
-                                        disabled={entrySubmitLoading}
-                                        className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
-                                    >
-                                        {entrySubmitLoading ? '追加中...' : '追加'}
-                                    </button>
-                                ) : (
-                                    <button
-                                        onClick={handleSubmitPairEntry}
-                                        disabled={entrySubmitLoading}
-                                        className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
-                                    >
-                                        {entrySubmitLoading ? '追加中...' : '追加'}
-                                    </button>
-                                )}
-                            <button
-                                onClick={() => {
-                                    setShowPlayerModal(false);
-                                    setSelectedTeam(null);
-                                        setEntrySubmitError(null);
-                                        setTeamEntryRegion('');
-                                        setPlayerForm({ entryKind: 'singles', region_name: '', player1_name: '', player1_affiliation: '', player2_name: '', player2_affiliation: '' });
-                                }}
-                                    className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600"
-                            >
-                                閉じる
-                            </button>
-                            </div>
                         </div>
                     </div>
                 )}

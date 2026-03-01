@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
-import Link from 'next/link';
-import { ArrowLeft, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import AppHeader from '@/components/AppHeader';
 import Breadcrumbs from '@/components/Breadcrumbs';
+import TournamentSubNav from '@/components/TournamentSubNav';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { createClient } from '@/lib/supabase/client';
 
 interface Match {
@@ -35,21 +36,27 @@ export default function LivePage() {
     const [matches, setMatches] = useState<Match[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null);
+    const supabase = useMemo(() => createClient(), []);
 
     const fetchData = useCallback(async () => {
         try {
             setError(null);
 
-            // 大会情報取得
-            const tournamentRes = await fetch(`/api/tournaments/${tournamentId}`);
-            const tournamentData = await tournamentRes.json();
+            // 並列で取得
+            const [tournamentRes, matchesRes] = await Promise.all([
+                fetch(`/api/tournaments/${tournamentId}`),
+                fetch(`/api/scoring/live?tournament_id=${tournamentId}`),
+            ]);
+
+            const [tournamentData, matchesData] = await Promise.all([
+                tournamentRes.json(),
+                matchesRes.json(),
+            ]);
+
             if (tournamentRes.ok) {
                 setTournament(tournamentData);
             }
-
-            // ライブ試合一覧取得（進行中・終了）
-            const matchesRes = await fetch(`/api/scoring/live?tournament_id=${tournamentId}`);
-            const matchesData = await matchesRes.json();
             if (matchesRes.ok) {
                 setMatches(matchesData.data || []);
             }
@@ -69,8 +76,6 @@ export default function LivePage() {
     useEffect(() => {
         if (!tournamentId) return;
 
-        const supabase = createClient();
-
         // 試合の変更を購読
         const matchesChannel = supabase
             .channel(`tournament:${tournamentId}:matches`)
@@ -84,7 +89,8 @@ export default function LivePage() {
                 },
                 (payload) => {
                     // 試合ステータス変更時に更新
-                    if ((payload.new as { status?: string }).status === 'inprogress' || (payload.new as { status?: string }).status === 'finished') {
+                    const newRecord = payload.new as Record<string, unknown> | undefined;
+                    if (newRecord && (newRecord.status === 'inprogress' || newRecord.status === 'finished')) {
                         fetchData();
                     }
                 }
@@ -103,14 +109,16 @@ export default function LivePage() {
                 },
                 (payload) => {
                     // 該当試合のスコアを更新
+                    const newScore = payload.new as Record<string, unknown> | undefined;
+                    if (!newScore || !newScore.match_id) return;
                     setMatches((prev) =>
                         prev.map((m) =>
-                            m.id === payload.new.match_id
+                            m.id === newScore.match_id
                                 ? {
                                       ...m,
                                       match_scores: {
-                                          game_count_a: payload.new.game_count_a,
-                                          game_count_b: payload.new.game_count_b,
+                                          game_count_a: newScore.game_count_a as number,
+                                          game_count_b: newScore.game_count_b as number,
                                       },
                                   }
                                 : m
@@ -124,17 +132,20 @@ export default function LivePage() {
             supabase.removeChannel(matchesChannel);
             supabase.removeChannel(scoresChannel);
         };
-    }, [tournamentId, fetchData]);
+    }, [tournamentId, supabase, fetchData]);
 
     if (loading) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-400"></div>
+                <LoadingSpinner />
             </div>
         );
     }
 
-    const liveMatches = matches.filter((m) => m.status === 'inprogress' || m.status === 'finished');
+    const liveMatches = useMemo(
+        () => matches.filter((m) => m.status === 'inprogress' || m.status === 'finished'),
+        [matches]
+    );
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
@@ -167,60 +178,88 @@ export default function LivePage() {
                     </div>
                     </div>
 
+                <TournamentSubNav tournamentId={tournamentId} />
+
                 {/* Live Matches */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {liveMatches.map((match) => (
-                        <Link
-                            key={match.id}
-                            href={`/matches/${match.id}`}
-                            className="p-6 bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50 hover:border-red-500 transition-all"
-                        >
-                            <div className="flex items-center justify-between mb-4">
-                                <div>
-                                    <p className="text-white font-medium">{match.round_name}</p>
-                                    <p className="text-slate-400 text-sm">試合 #{match.match_number}</p>
+                    {liveMatches.map((match) => {
+                        const isExpanded = expandedMatchId === match.id;
+                        return (
+                            <div
+                                key={match.id}
+                                onClick={() => setExpandedMatchId(isExpanded ? null : match.id)}
+                                className={`p-6 bg-slate-800/50 backdrop-blur-xl rounded-xl border transition-all cursor-pointer ${
+                                    isExpanded ? 'border-red-500' : 'border-slate-700/50 hover:border-red-500'
+                                }`}
+                            >
+                                <div className="flex items-center justify-between mb-4">
+                                    <div>
+                                        <p className="text-white font-medium">{match.round_name}</p>
+                                        <p className="text-slate-400 text-sm">試合 #{match.match_number}</p>
+                                    </div>
+                                    {match.court_number && (
+                                        <span className="px-3 py-1 bg-red-500/20 text-red-400 rounded-full text-sm">
+                                            コート {match.court_number}
+                                        </span>
+                                    )}
                                 </div>
-                                {match.court_number && (
-                                    <span className="px-3 py-1 bg-red-500/20 text-red-400 rounded-full text-sm">
-                                        コート {match.court_number}
+                                {match.match_pairs && match.match_pairs.length > 0 && (
+                                    <div className="space-y-2 mb-4">
+                                        <div className="text-white font-medium">
+                                            {match.match_pairs[0]?.teams?.name || 'チームA'}
+                                        </div>
+                                        <div className="text-slate-400 text-sm">vs</div>
+                                        <div className="text-white font-medium">
+                                            {match.match_pairs.length >= 2 ? (match.match_pairs[1]?.teams?.name || 'チームB') : 'チームB'}
+                                        </div>
+                                    </div>
+                                )}
+                                {match.match_scores && (
+                                    <div className="flex items-center justify-center gap-4 pt-4 border-t border-slate-700">
+                                        <span className="text-3xl font-bold text-red-400">
+                                            {match.match_scores.game_count_a}
+                                        </span>
+                                        <span className="text-slate-400">-</span>
+                                        <span className="text-3xl font-bold text-red-400">
+                                            {match.match_scores.game_count_b}
+                                        </span>
+                                    </div>
+                                )}
+                                <div className="mt-4 flex justify-center">
+                                    <span
+                                        className={`px-3 py-1 text-xs rounded ${
+                                            match.status === 'finished'
+                                                ? 'bg-green-500/20 text-green-400'
+                                                : 'bg-blue-500/20 text-blue-400 animate-pulse'
+                                        }`}
+                                    >
+                                        {match.status === 'finished' ? '終了' : '進行中'}
                                     </span>
+                                </div>
+
+                                {/* Expanded Detail */}
+                                {isExpanded && (
+                                    <div className="mt-4 pt-4 border-t border-slate-700 space-y-3">
+                                        {match.match_pairs && match.match_pairs.length > 0 && (
+                                            <div>
+                                                <p className="text-slate-400 text-xs mb-2">対戦チーム</p>
+                                                {match.match_pairs.map((pair, idx) => (
+                                                    <div key={pair.id} className="flex items-center gap-2 text-sm text-white">
+                                                        <span className="text-slate-500">#{pair.pair_number}</span>
+                                                        <span>{pair.teams?.name || `チーム${idx + 1}`}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {!match.match_scores && (
+                                            <p className="text-slate-500 text-sm">スコアはまだ記録されていません</p>
+                                        )}
+                                        <p className="text-slate-500 text-xs text-center">タップで閉じる</p>
+                                    </div>
                                 )}
                             </div>
-                            {match.match_pairs && match.match_pairs.length > 0 && (
-                                <div className="space-y-2 mb-4">
-                                    <div className="text-white font-medium">
-                                        {match.match_pairs[0]?.teams?.name || 'チームA'}
-                                    </div>
-                                    <div className="text-slate-400 text-sm">vs</div>
-                                    <div className="text-white font-medium">
-                                        {match.match_pairs[1]?.teams?.name || 'チームB'}
-                                    </div>
-                                </div>
-                            )}
-                            {match.match_scores && (
-                                <div className="flex items-center justify-center gap-4 pt-4 border-t border-slate-700">
-                                    <span className="text-3xl font-bold text-red-400">
-                                        {match.match_scores.game_count_a}
-                                    </span>
-                                    <span className="text-slate-400">-</span>
-                                    <span className="text-3xl font-bold text-red-400">
-                                        {match.match_scores.game_count_b}
-                                    </span>
-                                </div>
-                            )}
-                            <div className="mt-4 flex justify-center">
-                                <span
-                                    className={`px-3 py-1 text-xs rounded ${
-                                        match.status === 'finished'
-                                            ? 'bg-green-500/20 text-green-400'
-                                            : 'bg-blue-500/20 text-blue-400 animate-pulse'
-                                    }`}
-                                >
-                                    {match.status === 'finished' ? '終了' : '進行中'}
-                                </span>
-                            </div>
-                        </Link>
-                    ))}
+                        );
+                    })}
                 </div>
 
                 {liveMatches.length === 0 && (

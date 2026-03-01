@@ -1,11 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { toast } from '@/lib/toast';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import CollapsibleFilters from '@/components/ui/CollapsibleFilters';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Save, Filter } from 'lucide-react';
 import AppHeader from '@/components/AppHeader';
 import Breadcrumbs from '@/components/Breadcrumbs';
+import TournamentSubNav from '@/components/TournamentSubNav';
 import { MatchStatusFilter, isValidMatchStatusFilter } from '@/types/match.types';
 
 interface Match {
@@ -105,7 +109,7 @@ export default function AssignmentsPage() {
                 (data) => data.court_number !== undefined && (data.court_number < 1 || !Number.isInteger(data.court_number))
             );
             if (invalidCourt) {
-                alert('コート番号は1以上の正の整数のみ指定できます。');
+                toast.error('コート番号は1以上の正の整数のみ指定できます。');
                 return;
             }
             const updates = Object.entries(assignments).map(([matchId, data]) => {
@@ -123,15 +127,15 @@ export default function AssignmentsPage() {
 
             const result = await response.json();
             if (!response.ok) {
-                alert(result.error || '保存に失敗しました');
+                toast.error(result.error || '保存に失敗しました');
                 return;
             }
 
-            alert('保存しました');
+            toast.success('保存しました');
             fetchData();
             setAssignments({});
         } catch (err) {
-            alert('保存に失敗しました');
+            toast.error('保存に失敗しました');
         } finally {
             setIsSaving(false);
         }
@@ -148,7 +152,7 @@ export default function AssignmentsPage() {
 
                 if (!response.ok) {
                     const result = await response.json();
-                    alert(result.error || '審判の変更に失敗しました');
+                    toast.error(result.error || '審判の変更に失敗しました');
                     return;
                 }
             } else {
@@ -158,14 +162,14 @@ export default function AssignmentsPage() {
 
                 if (!response.ok) {
                     const result = await response.json();
-                    alert(result.error || '審判の解除に失敗しました');
+                    toast.error(result.error || '審判の解除に失敗しました');
                     return;
                 }
             }
 
             fetchData();
         } catch (err) {
-            alert('審判の変更に失敗しました');
+            toast.error('審判の変更に失敗しました');
         }
     };
 
@@ -184,7 +188,7 @@ export default function AssignmentsPage() {
     if (loading) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-400"></div>
+                <LoadingSpinner />
             </div>
         );
     }
@@ -220,8 +224,10 @@ export default function AssignmentsPage() {
                     </div>
                 </div>
 
-                {/* Filters */}
-                <div className="mb-6 flex flex-wrap gap-4">
+                <TournamentSubNav tournamentId={tournamentId} />
+
+                <CollapsibleFilters>
+                <div className="flex flex-wrap gap-4">
                     <div className="flex items-center gap-2">
                         <Filter className="w-4 h-4 text-slate-400" />
                         <select
@@ -254,6 +260,7 @@ export default function AssignmentsPage() {
                         ))}
                     </select>
                 </div>
+                </CollapsibleFilters>
 
                 {/* Matches List */}
                 <div className="space-y-4">
@@ -338,9 +345,37 @@ export default function AssignmentsPage() {
                     })}
                 </div>
 
+                {filteredMatches.length > 0 && (
+                    <div className="mt-6 flex justify-center md:justify-end">
+                        <button
+                            onClick={handleSave}
+                            disabled={isSaving || Object.keys(assignments).length === 0}
+                            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold rounded-lg shadow-lg hover:from-green-600 hover:to-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                        >
+                            <Save className="w-4 h-4" />
+                            {isSaving ? '保存中...' : '割り当てを保存'}
+                        </button>
+                    </div>
+                )}
+
                 {filteredMatches.length === 0 && (
                     <div className="text-center py-12">
-                        <p className="text-slate-400">条件に一致する試合がありません</p>
+                        {matches.length === 0 ? (
+                            <>
+                                <p className="text-slate-400 text-lg mb-4">ドローが生成されていません</p>
+                                <p className="text-slate-500 text-sm mb-6">
+                                    試合割当を行うには、先にドロー管理でドローを生成してください
+                                </p>
+                                <Link
+                                    href={`/tournaments/${tournamentId}/draw`}
+                                    className="inline-flex items-center gap-2 px-6 py-3 bg-purple-500 text-white font-semibold rounded-lg hover:bg-purple-600 transition-colors"
+                                >
+                                    ドロー管理へ
+                                </Link>
+                            </>
+                        ) : (
+                            <p className="text-slate-400">条件に一致する試合がありません</p>
+                        )}
                     </div>
                 )}
             </div>

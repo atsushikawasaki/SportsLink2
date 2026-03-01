@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { toast } from '@/lib/toast';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Play, Edit, Users, Plus, Save, X } from 'lucide-react';
@@ -58,6 +60,20 @@ interface PairForm {
 }
 
 export default function MatchDetailPage() {
+    return (
+        <Suspense
+            fallback={
+                <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
+                    <LoadingSpinner />
+                </div>
+            }
+        >
+            <MatchDetailContent />
+        </Suspense>
+    );
+}
+
+function MatchDetailContent() {
     const params = useParams();
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -161,7 +177,7 @@ export default function MatchDetailPage() {
         );
 
         if (submittedPairs.length < requiredCount) {
-            alert(`必要なペア数（${requiredCount}組）に達していません`);
+            toast.error(`必要なペア数（${requiredCount}組）に達していません`);
             return;
         }
 
@@ -182,17 +198,17 @@ export default function MatchDetailPage() {
 
             if (!response.ok) {
                 const result = await response.json();
-                alert(result.error || 'ペアの提出に失敗しました');
+                toast.error(result.error || 'ペアの提出に失敗しました');
                 return;
             }
 
-            alert('ペアを提出しました');
+            toast.success('ペアを提出しました');
             setShowPairForm(false);
             setEditingPair(null);
             setPairForms({});
             fetchMatch();
         } catch (err) {
-            alert('ペアの提出に失敗しました');
+            toast.error('ペアの提出に失敗しました');
         } finally {
             setSubmitting(false);
         }
@@ -201,7 +217,7 @@ export default function MatchDetailPage() {
     if (loading) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-400"></div>
+                <LoadingSpinner />
             </div>
         );
     }
@@ -233,17 +249,20 @@ export default function MatchDetailPage() {
                 <header className="bg-slate-800/50 backdrop-blur-xl border-b border-slate-700/50 mb-8">
                     <div className="flex items-center justify-between py-4">
                         <Breadcrumbs
-                            items={
-                                tournamentIdFromQuery
-                                    ? [
-                                          { label: '大会ドロー', href: `/tournaments/${tournamentIdFromQuery}/draw` },
-                                          { label: match?.round_name || '試合詳細' },
-                                      ]
-                                    : [
-                                          { label: '担当試合一覧', href: '/assigned-matches' },
-                                          { label: match?.round_name || '試合詳細' },
-                                      ]
-                            }
+                            items={(() => {
+                                const tid = tournamentIdFromQuery || match?.tournaments?.id;
+                                const tname = match?.tournaments?.name;
+                                const items: Array<{ label: string; href?: string }> = [];
+                                if (tid && tname) {
+                                    items.push({ label: tname, href: `/tournaments/${tid}` });
+                                } else if (tournamentIdFromQuery) {
+                                    items.push({ label: '大会ドロー', href: `/tournaments/${tournamentIdFromQuery}/draw` });
+                                } else {
+                                    items.push({ label: '担当試合一覧', href: '/assigned-matches' });
+                                }
+                                items.push({ label: match?.round_name || '試合詳細' });
+                                return items;
+                            })()}
                         />
                         <div className="flex items-center gap-4">
                             <NotificationCenter />
@@ -408,9 +427,7 @@ export default function MatchDetailPage() {
                                                             if (nextPairNumber <= requiredCount) {
                                                                 handleAddPair(myTeam.team_id, nextPairNumber);
                                                             } else {
-                                                                alert(
-                                                                    `必要なペア数（${requiredCount}組）に達しています`
-                                                                );
+                                                                toast.info(`必要なペア数（${requiredCount}組）に達しています`);
                                                             }
                                                         }
                                                     }}

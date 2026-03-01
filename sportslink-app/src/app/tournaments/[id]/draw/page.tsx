@@ -1,11 +1,15 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { toast, confirmAsync } from '@/lib/toast';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, RefreshCw, List, Grid, Edit, Save, X } from 'lucide-react';
 import AppHeader from '@/components/AppHeader';
 import Breadcrumbs from '@/components/Breadcrumbs';
+import TournamentSubNav from '@/components/TournamentSubNav';
+import { getCsrfHeaders } from '@/lib/csrf';
 
 interface MatchSlot {
     id: string;
@@ -122,28 +126,30 @@ export default function DrawPage() {
         return `試合 #${match.match_number}`;
     };
 
-    useEffect(() => {
-        fetchData();
-    }, [tournamentId]);
-
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
 
-            // 大会情報取得
-            const tournamentRes = await fetch(`/api/tournaments/${tournamentId}`);
+            // 3つのAPIを並列で取得
+            const [tournamentRes, drawRes, entriesRes] = await Promise.all([
+                fetch(`/api/tournaments/${tournamentId}`),
+                fetch(`/api/tournaments/${tournamentId}/draw/tree`),
+                fetch(`/api/tournaments/${tournamentId}/entries`).catch(() => null),
+            ]);
+
+            // 大会情報
             const tournamentData = await tournamentRes.json();
             if (tournamentRes.ok) {
                 setTournament(tournamentData);
             }
 
-            // ドロー取得
-            const drawRes = await fetch(`/api/tournaments/${tournamentId}/draw`);
+            // ドロー
             const drawData = await drawRes.json();
             if (drawRes.ok) {
                 setPhases(drawData.phases || []);
-                setMatches(drawData.matches || []);
+                const flatMatches = (drawData.rounds ?? []).flatMap((r: { matches: Match[] }) => r.matches);
+                setMatches(flatMatches);
                 setCanRegenerate(drawData.can_regenerate !== false);
                 if (drawData.phases && drawData.phases.length > 0) {
                     setSelectedPhase(drawData.phases[0].id);
@@ -156,19 +162,10 @@ export default function DrawPage() {
                 console.error('Draw fetch error:', drawData);
             }
 
-            // エントリー一覧取得（手動編集用）
-            try {
-                const entriesRes = await fetch(`/api/tournaments/${tournamentId}/entries`);
+            // エントリー一覧（手動編集用）
+            if (entriesRes && entriesRes.ok) {
                 const entriesData = await entriesRes.json();
-                if (entriesRes.ok) {
-                    setEntries(entriesData.data || []);
-                } else {
-                    console.error('Failed to fetch entries:', entriesData.error);
-                    // エントリー取得失敗は警告のみ（編集機能は使用不可になる）
-                }
-            } catch (err) {
-                console.error('Failed to fetch entries:', err);
-                // エントリー取得失敗は警告のみ
+                setEntries(entriesData.data || []);
             }
         } catch (err) {
             console.error('Failed to fetch draw:', err);
@@ -176,28 +173,42 @@ export default function DrawPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [tournamentId]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
 
     const handleGenerate = async () => {
         if (!tournamentId) {
-            alert('大会情報の読み込みに失敗しています。ページを再読み込みしてください。');
+            toast.error('大会情報の読み込みに失敗しています。ページを再読み込みしてください。');
+            return;
+        }
+        if (entries.length === 0) {
+            toast.error('エントリーが登録されていません。先にエントリー管理でチーム・選手を登録してください。');
             return;
         }
         if (!canRegenerate) {
-            alert(
-                '試合が開始または終了済みのため、ドローを再生成できません。スコアや結果がある試合がある場合は再生成を禁止しています。'
-            );
+            toast.error('試合が開始または終了済みのため、ドローを再生成できません。スコアや結果がある試合がある場合は再生成を禁止しています。');
             return;
         }
-        if (!confirm('既存のドローは上書きされます。よろしいですか？')) {
-            return;
-        }
+        const ok = await confirmAsync({
+            title: '確認',
+            message: '既存のドローは上書きされます。よろしいですか？',
+            confirmLabel: '再生成する',
+        });
+        if (!ok) return;
 
         try {
             setIsGenerating(true);
+            const csrfHeaders = getCsrfHeaders();
+            if (!csrfHeaders['X-CSRF-Token']) {
+                toast.error('セキュリティのため、ページを再読み込みしてから再度お試しください。');
+                return;
+            }
             const response = await fetch(`/api/tournaments/${tournamentId}/draw/generate`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', ...csrfHeaders },
                 body: JSON.stringify({ umpire_initial: umpireInitial }),
             });
 
@@ -207,93 +218,109 @@ export default function DrawPage() {
             } catch {
                 const text = await response.text();
                 console.error('Draw generate error: non-JSON response', response.status, text?.slice(0, 200));
-                alert(`ドローの生成に失敗しました（${response.status}）。コンソールを確認してください。`);
+                toast.error(`ドローの生成に失敗しました（${response.status}）。コンソールを確認してください。`);
                 return;
             }
 
             if (!response.ok) {
-                const msg = result.details
-                    ? `${result.error || 'ドローの生成に失敗しました'}\n\n詳細: ${result.details}`
-                    : (result.error || 'ドローの生成に失敗しました');
+                const isCsrfInvalid = response.status === 403 && (result as { code?: string }).code === 'E-CSRF-001';
+                const msg = isCsrfInvalid
+                    ? 'セキュリティトークンの有効期限が切れている可能性があります。ページを再読み込みしてから再度お試しください。'
+                    : result.details
+                        ? `${result.error || 'ドローの生成に失敗しました'}\n\n詳細: ${result.details}`
+                        : (result.error || 'ドローの生成に失敗しました');
                 console.error('Draw generate error:', response.status, result.error, result.details, result);
-                alert(msg);
+                toast.error(msg);
                 return;
             }
 
-            alert('ドローを生成しました');
+            const resp = result as { entry_count?: number; matches_count?: number; bracket_size?: number };
+            console.log('[ドロー生成結果] entry_count:', resp.entry_count, 'matches_count:', resp.matches_count, 'bracket_size:', resp.bracket_size, 'full:', result);
+            toast.success('ドローを生成しました');
             fetchData();
         } catch (err) {
             console.error('Draw generate error:', err);
             const msg = err instanceof Error ? err.message : 'ドローの生成に失敗しました';
             if (msg === 'Failed to fetch') {
-                alert('ネットワークエラーまたはサーバーが応答していません。接続を確認し、しばらく待ってから再試行してください。');
+                toast.error('ネットワークエラーまたはサーバーが応答していません。接続を確認し、しばらく待ってから再試行してください。');
             } else {
-                alert(msg);
+                toast.error(msg);
             }
         } finally {
             setIsGenerating(false);
         }
     };
 
-    const filteredMatches = selectedPhase
-        ? matches.filter((m) => {
-              // phase_idでフィルタリング（実際のデータ構造に応じて調整）
-              return true;
-          })
-        : matches;
+    const filteredMatches = useMemo(() =>
+        selectedPhase
+            ? matches.filter(() => {
+                  // phase_idでフィルタリング（実際のデータ構造に応じて調整）
+                  return true;
+              })
+            : matches,
+        [matches, selectedPhase]
+    );
 
-    const groupedMatches = filteredMatches.reduce((acc, match) => {
-        if (!acc[match.round_name]) {
-            acc[match.round_name] = [];
-        }
-        acc[match.round_name].push(match);
-        return acc;
-    }, {} as Record<string, Match[]>);
+    const sortedRoundEntries = useMemo(() => {
+        const groupedMatches = filteredMatches.reduce((acc, match) => {
+            if (!acc[match.round_name]) {
+                acc[match.round_name] = [];
+            }
+            acc[match.round_name].push(match);
+            return acc;
+        }, {} as Record<string, Match[]>);
 
-    // round_index でソート（1回戦=1 → 2回戦=2 → … → 決勝）して表示順を保証
-    const roundOrder = ['1回戦', '2回戦', '3回戦', '4回戦', '5回戦', '6回戦', '準決勝', '決勝'];
-    const sortedRoundEntries = Object.entries(groupedMatches).sort(([nameA, matchesA], [nameB, matchesB]) => {
-        const idxA = matchesA[0]?.round_index ?? roundOrder.indexOf(nameA);
-        const idxB = matchesB[0]?.round_index ?? roundOrder.indexOf(nameB);
-        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-        const ia = roundOrder.indexOf(nameA);
-        const ib = roundOrder.indexOf(nameB);
-        if (ia !== -1 && ib !== -1) return ia - ib;
-        if (ia !== -1) return -1;
-        if (ib !== -1) return 1;
-        return nameA.localeCompare(nameB);
-    });
+        const roundOrder = ['1回戦', '2回戦', '3回戦', '4回戦', '5回戦', '6回戦', '準決勝', '決勝'];
+        return Object.entries(groupedMatches).sort(([nameA, matchesA], [nameB, matchesB]) => {
+            const idxA = matchesA[0]?.round_index ?? roundOrder.indexOf(nameA);
+            const idxB = matchesB[0]?.round_index ?? roundOrder.indexOf(nameB);
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+            const ia = roundOrder.indexOf(nameA);
+            const ib = roundOrder.indexOf(nameB);
+            if (ia !== -1 && ib !== -1) return ia - ib;
+            if (ia !== -1) return -1;
+            if (ib !== -1) return 1;
+            return nameA.localeCompare(nameB);
+        });
+    }, [filteredMatches]);
 
     // ブラケット用: ラウンド別試合（round_index 昇順）、各ラウンド内は slot_index 昇順
-    const matchesByRound = filteredMatches.reduce<Record<number, Match[]>>((acc, m) => {
-        const r = m.round_index;
-        if (!acc[r]) acc[r] = [];
-        acc[r].push(m);
-        return acc;
-    }, {});
-    Object.keys(matchesByRound).forEach((r) => {
-        matchesByRound[Number(r)].sort((a, b) => (a.slot_index ?? 0) - (b.slot_index ?? 0));
-    });
-    const roundIndices = Object.keys(matchesByRound)
-        .map(Number)
-        .sort((a, b) => a - b);
-    const maxRound = roundIndices.length > 0 ? Math.max(...roundIndices) : 1;
-    const totalBracketRows = Math.pow(2, maxRound);
+    const { matchesByRound, roundIndices, maxRound, totalBracketRows } = useMemo(() => {
+        const byRound = filteredMatches.reduce<Record<number, Match[]>>((acc, m) => {
+            const r = m.round_index;
+            if (!acc[r]) acc[r] = [];
+            acc[r].push(m);
+            return acc;
+        }, {});
+        Object.keys(byRound).forEach((r) => {
+            byRound[Number(r)].sort((a, b) => (a.slot_index ?? 0) - (b.slot_index ?? 0));
+        });
+        const indices = Object.keys(byRound)
+            .map(Number)
+            .sort((a, b) => a - b);
+        const max = indices.length > 0 ? Math.max(...indices) : 1;
+        return {
+            matchesByRound: byRound,
+            roundIndices: indices,
+            maxRound: max,
+            totalBracketRows: Math.pow(2, max),
+        };
+    }, [filteredMatches]);
 
     const handleEditMatch = (matchId: string) => {
         const match = matches.find((m) => m.id === matchId);
         if (!match) {
-            alert('試合が見つかりません');
+            toast.error('試合が見つかりません');
             return;
         }
 
         if (!match.match_slots || match.match_slots.length === 0) {
-            alert('この試合にはスロット情報がありません。ドローを再生成してください。');
+            toast.error('この試合にはスロット情報がありません。ドローを再生成してください。');
             return;
         }
 
         if (entries.length === 0) {
-            alert('エントリー情報の取得に失敗しました。ページを再読み込みしてください。');
+            toast.error('エントリー情報の取得に失敗しました。ページを再読み込みしてください。');
             return;
         }
 
@@ -322,12 +349,12 @@ export default function DrawPage() {
             setIsSaving(true);
             const match = matches.find((m) => m.id === editingMatch);
             if (!match) {
-                alert('試合が見つかりません');
+                toast.error('試合が見つかりません');
                 return;
             }
 
             if (!match.match_slots || match.match_slots.length === 0) {
-                alert('この試合にはスロット情報がありません');
+                toast.error('この試合にはスロット情報がありません');
                 return;
             }
 
@@ -360,17 +387,17 @@ export default function DrawPage() {
 
             if (!response.ok) {
                 const result = await response.json();
-                alert(result.error || 'ドローの更新に失敗しました');
+                toast.error(result.error || 'ドローの更新に失敗しました');
                 return;
             }
 
-            alert('ドローを更新しました');
+            toast.success('ドローを更新しました');
             setEditingMatch(null);
             setEditingSlots({});
             fetchData();
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'ドローの更新に失敗しました';
-            alert(errorMessage);
+            toast.error(errorMessage);
         } finally {
             setIsSaving(false);
         }
@@ -379,7 +406,7 @@ export default function DrawPage() {
     if (loading) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-400"></div>
+                <LoadingSpinner />
             </div>
         );
     }
@@ -399,7 +426,7 @@ export default function DrawPage() {
                     />
                     <div className="flex items-center justify-between mt-4">
                         <div>
-                            <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
                                 ドロー管理
                             </h1>
                             {tournament && <p className="text-slate-400 mt-2">{tournament.name}</p>}
@@ -427,17 +454,25 @@ export default function DrawPage() {
                                 </button>
                                 <button
                                     onClick={handleGenerate}
-                                    disabled={isGenerating || !canRegenerate}
-                                    title={!canRegenerate ? '試合開始または終了済みの試合があるため再生成できません' : undefined}
+                                    disabled={isGenerating || !canRegenerate || entries.length === 0}
+                                    title={
+                                        entries.length === 0
+                                            ? '先にエントリーを登録してください'
+                                            : !canRegenerate
+                                            ? '試合開始または終了済みの試合があるため再生成できません'
+                                            : undefined
+                                    }
                                     className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-lg shadow-lg hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
                                 >
                                     <RefreshCw className={`w-4 h-4 ${isGenerating ? 'animate-spin' : ''}`} />
-                                    {isGenerating ? '生成中...' : 'ドロー自動生成'}
+                                    {isGenerating ? '生成中...' : matches.length > 0 ? 'ドローを再生成' : 'ドローを生成'}
                                 </button>
                             </div>
                         </div>
                     </div>
                 </div>
+
+                <TournamentSubNav tournamentId={tournamentId} />
 
                 {/* Phase Selector */}
                 {phases.length > 1 && (
@@ -468,15 +503,38 @@ export default function DrawPage() {
                 {/* Matches Display */}
                 {matches.length === 0 ? (
                     <div className="text-center py-12">
-                        <p className="text-slate-400 text-lg mb-4">ドローが生成されていません</p>
-                        <button
+                        {entries.length === 0 ? (
+                            <>
+                                <p className="text-slate-400 text-lg mb-4">先にエントリーを登録してください</p>
+                                <p className="text-slate-500 text-sm mb-6">
+                                    ドローを生成するには、エントリー管理でチーム・選手を登録する必要があります
+                                </p>
+                                <Link
+                                    href={`/tournaments/${tournamentId}/entries`}
+                                    className="inline-flex items-center gap-2 px-6 py-3 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition-colors"
+                                >
+                                    エントリー管理へ
+                                </Link>
+                            </>
+                        ) : (
+                            <>
+                                <p className="text-slate-400 text-lg mb-4">ドローが生成されていません</p>
+                                <button
                             onClick={handleGenerate}
-                            disabled={isGenerating || !canRegenerate}
-                            title={!canRegenerate ? '試合開始または終了済みの試合があるため再生成できません' : undefined}
+                            disabled={isGenerating || !canRegenerate || entries.length === 0}
+                            title={
+                                entries.length === 0
+                                    ? '先にエントリーを登録してください'
+                                    : !canRegenerate
+                                    ? '試合開始または終了済みの試合があるため再生成できません'
+                                    : undefined
+                            }
                             className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-lg shadow-lg hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 transition-all duration-200"
                         >
                             {isGenerating ? '生成中...' : 'ドローを生成'}
                         </button>
+                            </>
+                        )}
                     </div>
                 ) : viewMode === 'list' ? (
                     <div className="space-y-6">
@@ -580,14 +638,14 @@ export default function DrawPage() {
                                                         <button
                                                             onClick={handleSaveEdit}
                                                             disabled={isSaving}
-                                                            className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-green-500 text-white rounded text-sm hover:bg-green-600 disabled:opacity-50"
+                                                            className="flex-1 flex items-center justify-center gap-1 px-4 py-3 min-h-[48px] bg-green-500 text-white rounded-lg text-sm hover:bg-green-600 disabled:opacity-50"
                                                         >
                                                             <Save className="w-3 h-3" />
                                                             保存
                                                         </button>
                                                         <button
                                                             onClick={handleCancelEdit}
-                                                            className="flex items-center justify-center gap-1 px-3 py-2 bg-slate-600 text-white rounded text-sm hover:bg-slate-700"
+                                                            className="flex items-center justify-center gap-1 px-4 py-3 min-h-[48px] bg-slate-600 text-white rounded-lg text-sm hover:bg-slate-700"
                                                         >
                                                             <X className="w-3 h-3" />
                                                             キャンセル

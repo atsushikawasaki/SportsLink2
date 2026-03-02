@@ -2,8 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { submitContact } from '../submitContact';
 
 const mockGetUser = vi.fn();
-const mockInsert = vi.fn();
-const mockSelect = vi.fn();
 const mockSingle = vi.fn();
 const mockFrom = vi.fn();
 const mockCheckRateLimit = vi.fn().mockReturnValue({ allowed: true });

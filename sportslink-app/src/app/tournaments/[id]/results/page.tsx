@@ -2,9 +2,9 @@
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { toast, confirmAsync } from '@/lib/toast';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Search, Filter, Download, RotateCcw, Edit, CheckCircle } from 'lucide-react';
+import { Search, Filter, Download, RotateCcw, Edit, CheckCircle } from 'lucide-react';
 import AppHeader from '@/components/AppHeader';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import TournamentSubNav from '@/components/TournamentSubNav';
@@ -35,15 +35,18 @@ interface Match {
     }>;
 }
 
+interface Tournament {
+    id: string;
+    name: string;
+}
+
 export default function ResultsPage() {
     const params = useParams();
-    const router = useRouter();
     const tournamentId = params.id as string;
 
-    const [tournament, setTournament] = useState<any>(null);
+    const [tournament, setTournament] = useState<Tournament | null>(null);
     const [matches, setMatches] = useState<Match[]>([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<MatchStatusFilter>('all');
     const [roundFilter, setRoundFilter] = useState<string>('all');
@@ -56,36 +59,32 @@ export default function ResultsPage() {
     const fetchData = useCallback(async () => {
         try {
             setLoading(true);
-            setError(null);
 
-            // 大会情報取得
             const tournamentRes = await fetch(`/api/tournaments/${tournamentId}`);
             const tournamentData = await tournamentRes.json();
             if (tournamentRes.ok) {
                 setTournament(tournamentData);
             }
 
-            // 試合一覧取得（サーバーサイドフィルタリング）
-            const params = new URLSearchParams();
-            params.append('status', 'finished');
+            const queryParams = new URLSearchParams();
+            queryParams.append('status', 'finished');
             if (statusFilter !== 'all') {
-                params.set('status', statusFilter);
+                queryParams.set('status', statusFilter);
             }
             if (roundFilter !== 'all') {
-                params.append('round', roundFilter);
+                queryParams.append('round', roundFilter);
             }
             if (searchQuery) {
-                params.append('search', searchQuery);
+                queryParams.append('search', searchQuery);
             }
 
-            const matchesRes = await fetch(`/api/tournaments/${tournamentId}/matches?${params.toString()}`);
+            const matchesRes = await fetch(`/api/tournaments/${tournamentId}/matches?${queryParams.toString()}`);
             const matchesData = await matchesRes.json();
             if (matchesRes.ok) {
                 setMatches(matchesData.data || []);
             }
         } catch (err) {
             console.error('Failed to fetch data:', err);
-            setError('データの取得に失敗しました');
         } finally {
             setLoading(false);
         }

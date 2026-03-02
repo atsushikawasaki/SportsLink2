@@ -14,31 +14,31 @@ export default function MarkdownContent({ content, className = '' }: MarkdownCon
             <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
-                    h1: ({ node, ...props }) => (
+                    h1: ({ node: _node, ...props }) => (
                         <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent mb-4" {...props} />
                     ),
-                    h2: ({ node, ...props }) => (
+                    h2: ({ node: _node, ...props }) => (
                         <h2 className="text-xl font-semibold text-white mb-4 mt-6" {...props} />
                     ),
-                    h3: ({ node, ...props }) => (
+                    h3: ({ node: _node, ...props }) => (
                         <h3 className="text-lg font-semibold text-white mb-3 mt-4" {...props} />
                     ),
-                    p: ({ node, ...props }) => (
+                    p: ({ node: _node, ...props }) => (
                         <p className="mb-4 leading-relaxed" {...props} />
                     ),
-                    ul: ({ node, ...props }) => (
+                    ul: ({ node: _node, ...props }) => (
                         <ul className="list-disc list-inside space-y-2 ml-4 mb-4" {...props} />
                     ),
-                    ol: ({ node, ...props }) => (
+                    ol: ({ node: _node, ...props }) => (
                         <ol className="list-decimal list-inside space-y-2 ml-4 mb-4" {...props} />
                     ),
-                    li: ({ node, ...props }) => (
+                    li: ({ node: _node, ...props }) => (
                         <li className="mb-1" {...props} />
                     ),
-                    strong: ({ node, ...props }) => (
+                    strong: ({ node: _node, ...props }) => (
                         <strong className="font-semibold text-white" {...props} />
                     ),
-                    hr: ({ node, ...props }) => (
+                    hr: ({ node: _node, ...props }) => (
                         <hr className="border-slate-700 my-6" {...props} />
                     ),
                 }}

@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import { getConsentVersions } from '@/lib/consent-versions';
 
 // GET /api/auth/consent/check - 規約同意状況チェック
-export async function checkConsent(request: Request) {
+export async function checkConsent(_request: Request) {
     try {
         const supabase = await createClient();
 

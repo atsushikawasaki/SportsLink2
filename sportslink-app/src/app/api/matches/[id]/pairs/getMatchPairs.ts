@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
 // GET /api/matches/:id/pairs - ペア取得（オーダー秘匿時は両者提出完了まで相手スロットを返さない）
-export async function getMatchPairs(id: string, request?: Request) {
+export async function getMatchPairs(id: string, _request?: Request) {
     try {
         const supabase = await createClient();
 

@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { toast, confirmAsync } from '@/lib/toast';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Plus, Edit, Trash2 } from 'lucide-react';
+import { Plus, Edit, Trash2 } from 'lucide-react';
 import NotificationCenter from '@/components/NotificationCenter';
 import Breadcrumbs from '@/components/Breadcrumbs';
 
@@ -31,23 +31,17 @@ export default function PlayersPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
-        fetchData();
-    }, [teamId]);
-
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
 
-            // チーム情報取得
             const teamRes = await fetch(`/api/teams/${teamId}`);
             const teamData = await teamRes.json();
             if (teamRes.ok) {
                 setTeam(teamData);
             }
 
-            // 選手一覧取得
             const playersRes = await fetch(`/api/teams/${teamId}/players`);
             const playersData = await playersRes.json();
             if (playersRes.ok) {
@@ -59,7 +53,11 @@ export default function PlayersPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [teamId]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
 
     const handleDelete = async (playerId: string) => {
         const ok = await confirmAsync({ title: '確認', message: 'この選手を削除しますか？', confirmLabel: '削除' });

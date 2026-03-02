@@ -7,7 +7,7 @@ import { NextResponse } from 'next/server';
  * 既存のauth.usersをpublic.usersに同期する
  * 開発環境では誰でも実行可能。本番で ALLOW_USER_SYNC 時は管理者ロール必須。
  */
-export async function syncUsers(request: Request) {
+export async function syncUsers(_request: Request) {
     if (process.env.NODE_ENV !== 'development' && process.env.ALLOW_USER_SYNC !== 'true') {
         return NextResponse.json(
             { error: 'This endpoint is only available in development or when ALLOW_USER_SYNC is set' },
@@ -42,7 +42,6 @@ export async function syncUsers(request: Request) {
             .select('id, email')
             .limit(1000);
 
-        const authUserIds = new Set(authUsers?.users?.map(u => u.id) || []);
         const publicUserIds = new Set(publicUsers?.map(u => u.id) || []);
 
         const missingInPublic = authUsers?.users?.filter(

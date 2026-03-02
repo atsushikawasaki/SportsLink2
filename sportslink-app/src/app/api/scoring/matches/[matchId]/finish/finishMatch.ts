@@ -76,8 +76,8 @@ export async function finishMatch(matchId: string, request?: Request) {
 
         try {
             await processMatchFinish(matchId);
-        } catch (finishError: any) {
-            if (finishError?.code === 'NO_WINNER') {
+        } catch (finishError: unknown) {
+            if ((finishError as { code?: string })?.code === 'NO_WINNER') {
                 return NextResponse.json(
                     { error: 'スコアが同点のため、勝者を決定できません。スコアを確認してください。', code: 'E-VER-003' },
                     { status: 400 }
@@ -100,7 +100,7 @@ export async function finishMatch(matchId: string, request?: Request) {
             );
         }
 
-        const tournament = match.tournaments as any;
+        const tournament = match.tournaments as { id: string; umpire_mode: string } | null;
         if (tournament?.umpire_mode === 'LOSER' && match.match_scores && match.match_scores.length > 0) {
             const score = match.match_scores[0];
             const scoreA = score.game_count_a || 0;

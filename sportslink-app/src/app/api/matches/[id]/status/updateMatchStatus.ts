@@ -51,7 +51,7 @@ export async function updateMatchStatus(id: string, request: Request) {
             );
         }
 
-        const updateData: any = { status };
+        const updateData: { status: string; started_at?: string } = { status };
         if (status === 'inprogress' && !body.started_at) {
             updateData.started_at = new Date().toISOString();
         }

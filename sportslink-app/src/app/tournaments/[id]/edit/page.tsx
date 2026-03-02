@@ -1,12 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
 import AppHeader from '@/components/AppHeader';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
@@ -32,7 +31,7 @@ export default function EditTournamentPage() {
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [loading, setLoading] = useState(true);
-    const [tournament, setTournament] = useState<any>(null);
+    const [tournament, setTournament] = useState<{ name?: string } | null>(null);
 
     const {
         register,
@@ -40,14 +39,10 @@ export default function EditTournamentPage() {
         formState: { errors },
         reset,
     } = useForm<TournamentInput>({
-        resolver: zodResolver(tournamentSchema) as any,
+        resolver: zodResolver(tournamentSchema),
     });
 
-    useEffect(() => {
-        fetchTournament();
-    }, [tournamentId]);
-
-    const fetchTournament = async () => {
+    const fetchTournament = useCallback(async () => {
         try {
             setLoading(true);
             const response = await fetch(`/api/tournaments/${tournamentId}`);
@@ -58,7 +53,6 @@ export default function EditTournamentPage() {
                 return;
             }
 
-            // Format dates for input fields
             const tournamentData = {
                 ...result,
                 start_date: result.start_date ? result.start_date.split('T')[0] : '',
@@ -73,7 +67,11 @@ export default function EditTournamentPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [tournamentId, reset]);
+
+    useEffect(() => {
+        fetchTournament();
+    }, [fetchTournament]);
 
     const onSubmit = async (data: TournamentInput) => {
         setError(null);
@@ -136,7 +134,7 @@ export default function EditTournamentPage() {
                     )}
 
                     {/* Form */}
-                    <form onSubmit={handleSubmit(onSubmit as (data: TournamentInput) => void)} className="space-y-6">
+                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                         {/* Name */}
                         <div>
                             <label htmlFor="name" className="block text-sm font-medium text-slate-300 mb-2">

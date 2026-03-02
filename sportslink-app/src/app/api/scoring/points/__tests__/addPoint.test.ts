@@ -4,7 +4,6 @@ import { addPoint } from '../addPoint';
 const mockSelect = vi.fn();
 const mockEq = vi.fn();
 const mockSingle = vi.fn();
-const mockInsert = vi.fn();
 const mockUpdate = vi.fn();
 const mockFrom = vi.fn();
 const mockUpsert = vi.fn();

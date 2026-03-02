@@ -3,12 +3,9 @@ import { signupUser } from '../signupUser';
 
 // モック
 const mockSignUp = vi.fn();
-const mockGetUser = vi.fn();
 const mockSelect = vi.fn();
 const mockEq = vi.fn();
 const mockSingle = vi.fn();
-const mockInsert = vi.fn();
-const mockUpdate = vi.fn();
 const mockFrom = vi.fn();
 
 vi.mock('@/lib/supabase/server', () => ({

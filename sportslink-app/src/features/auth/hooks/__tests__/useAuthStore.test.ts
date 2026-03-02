@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useAuthStore } from '../useAuthStore';
+import type { Tables } from '@/types/database.types';
+
+type User = Tables<'users'>;
 
 describe('useAuthStore', () => {
   beforeEach(() => {
@@ -30,7 +33,7 @@ describe('useAuthStore', () => {
       email: 'test@example.com',
       display_name: 'Test User',
       created_at: new Date().toISOString(),
-    } as any;
+    } as unknown as User;
 
     act(() => {
       result.current.setUser(mockUser);
@@ -46,7 +49,7 @@ describe('useAuthStore', () => {
     const mockUser = {
       id: 'user-123',
       email: 'test@example.com',
-    } as any;
+    } as unknown as User;
 
     act(() => {
       result.current.setUser(mockUser);
@@ -102,7 +105,7 @@ describe('useAuthStore', () => {
     const mockUser = {
       id: 'user-123',
       email: 'test@example.com',
-    } as any;
+    } as unknown as User;
 
     act(() => {
       result.current.setUser(mockUser);
@@ -124,7 +127,7 @@ describe('useAuthStore', () => {
     const mockUser = {
       id: 'user-123',
       email: 'test@example.com',
-    } as any;
+    } as unknown as User;
 
     act(() => {
       result.current.setUser(mockUser);

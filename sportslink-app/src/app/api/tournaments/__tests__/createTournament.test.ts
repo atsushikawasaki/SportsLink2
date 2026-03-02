@@ -3,7 +3,6 @@ import { createTournament } from '../createTournament';
 
 // Supabaseクライアントをモック
 const mockGetUser = vi.fn();
-const mockInsert = vi.fn();
 const mockSelect = vi.fn();
 const mockSingle = vi.fn();
 const mockFrom = vi.fn();

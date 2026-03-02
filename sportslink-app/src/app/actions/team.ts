@@ -28,7 +28,7 @@ export async function createTeamAction(data: unknown) {
 
     const parsed = createTeamSchema.parse(data);
 
-    let managerId = parsed.team_manager_user_id ?? user.id;
+    const managerId = parsed.team_manager_user_id ?? user.id;
     if (managerId && managerId !== user.id) {
         const admin = await isAdmin(user.id);
         if (!admin) throw new Error('チーム管理者には自分以外を指定できません');

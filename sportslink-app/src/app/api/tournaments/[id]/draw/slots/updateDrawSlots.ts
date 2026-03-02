@@ -64,8 +64,21 @@ export async function updateDrawSlots(id: string, request: Request) {
             );
         }
 
-        const updates = slots.map((slot: any) => {
-            const updateData: any = {
+        type SlotInput = {
+            id: string;
+            source_type: string;
+            entry_id?: string | null;
+            source_match_id?: string | null;
+            placeholder_label?: string | null;
+        };
+        type SlotUpdateData = {
+            source_type: string;
+            entry_id?: string | null;
+            source_match_id?: string | null;
+            placeholder_label?: string | null;
+        };
+        const updates = slots.map((slot: SlotInput) => {
+            const updateData: SlotUpdateData = {
                 source_type: slot.source_type,
             };
 

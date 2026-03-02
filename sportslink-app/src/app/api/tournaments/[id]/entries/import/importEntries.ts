@@ -436,10 +436,11 @@ export async function importEntries(id: string, request: Request) {
                     .in('entry_id', idsToDeactivate)
                     .not('matches.status', 'eq', 'finished');
 
+                type ActiveSlot = { entry_id: string; matches?: { status?: string } | null };
                 const entriesWithActiveMatches = new Set(
                     (activeSlots ?? [])
-                        .filter((s: any) => s.matches?.status && s.matches.status !== 'pending')
-                        .map((s: any) => s.entry_id as string)
+                        .filter((s: ActiveSlot) => s.matches?.status && s.matches.status !== 'pending')
+                        .map((s: ActiveSlot) => s.entry_id)
                 );
 
                 if (entriesWithActiveMatches.size > 0) {

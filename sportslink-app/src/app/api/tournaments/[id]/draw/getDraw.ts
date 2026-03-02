@@ -73,7 +73,7 @@ export async function getDraw(id: string) {
                 (m) => (m.status as string) === 'inprogress' || (m.status as string) === 'finished'
             );
             const hasInProgress = inProgressOrFinished.some((m) => (m.status as string) === 'inprogress');
-            let canRegenerate = !hasInProgress;
+            canRegenerate = !hasInProgress;
             if (!hasInProgress && inProgressOrFinished.length > 0) {
                 const finishedMatchIds = inProgressOrFinished
                     .filter((m) => (m.status as string) === 'finished')

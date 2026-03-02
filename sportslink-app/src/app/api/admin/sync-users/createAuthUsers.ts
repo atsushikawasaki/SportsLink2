@@ -7,7 +7,7 @@ import { NextResponse } from 'next/server';
  * public.usersに存在するがauth.usersに存在しないユーザーをauth.usersに作成する
  * 本番で ALLOW_USER_SYNC 時は管理者ロール必須。
  */
-export async function createAuthUsers(request: Request) {
+export async function createAuthUsers(_request: Request) {
     if (process.env.NODE_ENV !== 'development' && process.env.ALLOW_USER_SYNC !== 'true') {
         return NextResponse.json(
             { error: 'This endpoint is only available in development or when ALLOW_USER_SYNC is set' },
@@ -62,9 +62,6 @@ export async function createAuthUsers(request: Request) {
         // 各ユーザーをauth.usersに作成
         for (const user of missingInAuth) {
             try {
-                // ランダムなパスワードを生成（ユーザーはパスワードリセットが必要）
-                const tempPassword = `temp_${Math.random().toString(36).slice(-12)}`;
-                
                 const { data: newAuthUser, error: createError } = await adminClient.auth.admin.createUser({
                     email: user.email,
                     email_confirm: true,

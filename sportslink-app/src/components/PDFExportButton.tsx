@@ -10,7 +10,7 @@ interface PDFExportButtonProps {
     tournamentName: string;
 }
 
-export default function PDFExportButton({ tournamentId, tournamentName }: PDFExportButtonProps) {
+export default function PDFExportButton({ tournamentId, tournamentName: _tournamentName }: PDFExportButtonProps) {
     const [isExporting, setIsExporting] = useState(false);
 
     const handleExport = async () => {

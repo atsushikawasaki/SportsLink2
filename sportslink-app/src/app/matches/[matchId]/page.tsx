@@ -1,11 +1,11 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { toast } from '@/lib/toast';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Play, Edit, Users, Plus, Save, X } from 'lucide-react';
+import { Play, Edit, Plus, Save, X } from 'lucide-react';
 import NotificationCenter from '@/components/NotificationCenter';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
@@ -75,7 +75,6 @@ export default function MatchDetailPage() {
 
 function MatchDetailContent() {
     const params = useParams();
-    const router = useRouter();
     const searchParams = useSearchParams();
     const matchId = params.matchId as string;
     const tournamentIdFromQuery = searchParams.get('tournamentId');
@@ -90,11 +89,7 @@ function MatchDetailContent() {
     const [pairForms, setPairForms] = useState<Record<number, PairForm>>({});
     const [submitting, setSubmitting] = useState(false);
 
-    useEffect(() => {
-        fetchMatch();
-    }, [matchId]);
-
-    const fetchMatch = async () => {
+    const fetchMatch = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
@@ -124,7 +119,11 @@ function MatchDetailContent() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [matchId]);
+
+    useEffect(() => {
+        fetchMatch();
+    }, [fetchMatch]);
 
     // 自分のチームかどうかを判定
     const isMyTeam = (teamId: string) => {
@@ -141,7 +140,7 @@ function MatchDetailContent() {
         return 2; // デフォルト
     };
 
-    const handleAddPair = (teamId: string, pairNumber: number) => {
+    const handleAddPair = (_teamId: string, pairNumber: number) => {
         setPairForms((prev) => ({
             ...prev,
             [pairNumber]: {
@@ -171,7 +170,6 @@ function MatchDetailContent() {
         if (!match) return;
 
         const requiredCount = getRequiredPairCount();
-        const myTeamPairs = match.match_pairs?.filter((p) => p.team_id === teamId) || [];
         const submittedPairs = Object.values(pairForms).filter(
             (form) => form.player_1_id && form.pair_number
         );
@@ -207,7 +205,7 @@ function MatchDetailContent() {
             setEditingPair(null);
             setPairForms({});
             fetchMatch();
-        } catch (err) {
+        } catch {
             toast.error('ペアの提出に失敗しました');
         } finally {
             setSubmitting(false);

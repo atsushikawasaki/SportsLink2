@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -40,11 +40,7 @@ export default function NewPlayerPage() {
         resolver: zodResolver(playerSchema),
     });
 
-    useEffect(() => {
-        fetchTeam();
-    }, [teamId]);
-
-    const fetchTeam = async () => {
+    const fetchTeam = useCallback(async () => {
         try {
             setLoading(true);
             const response = await fetch(`/api/teams/${teamId}`);
@@ -62,7 +58,11 @@ export default function NewPlayerPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [teamId]);
+
+    useEffect(() => {
+        fetchTeam();
+    }, [fetchTeam]);
 
     const onSubmit = async (data: PlayerInput) => {
         setError(null);

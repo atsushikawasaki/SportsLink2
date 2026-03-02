@@ -31,7 +31,7 @@ export default function NewTournamentPage() {
         handleSubmit,
         formState: { errors },
     } = useForm<TournamentInput>({
-        resolver: zodResolver(tournamentSchema) as any,
+        resolver: zodResolver(tournamentSchema),
         defaultValues: {
             status: 'draft',
             is_public: false,

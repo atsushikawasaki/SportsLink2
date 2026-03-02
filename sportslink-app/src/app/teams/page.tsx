@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -24,7 +24,7 @@ interface Team {
 
 export default function TeamsPage() {
     const router = useRouter();
-    const { user, isAuthenticated } = useAuthStore();
+    const { isAuthenticated } = useAuthStore();
     const [teams, setTeams] = useState<Team[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -33,16 +33,7 @@ export default function TeamsPage() {
     const [totalCount, setTotalCount] = useState(0);
     const limit = 20;
 
-    useEffect(() => {
-        if (!isAuthenticated) {
-            router.push('/login');
-            return;
-        }
-
-        fetchTeams();
-    }, [isAuthenticated, router, page]);
-
-    const fetchTeams = async () => {
+    const fetchTeams = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
@@ -64,7 +55,16 @@ export default function TeamsPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [page, limit]);
+
+    useEffect(() => {
+        if (!isAuthenticated) {
+            router.push('/login');
+            return;
+        }
+
+        fetchTeams();
+    }, [isAuthenticated, router, fetchTeams]);
 
     const filteredTeams = teams.filter((team) => {
         if (searchQuery) {

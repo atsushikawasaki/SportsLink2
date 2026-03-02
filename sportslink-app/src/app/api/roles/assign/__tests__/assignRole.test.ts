@@ -7,7 +7,6 @@ const mockEq = vi.fn();
 const mockIs = vi.fn();
 const mockSingle = vi.fn();
 const mockMaybeSingle = vi.fn();
-const mockInsert = vi.fn();
 const mockFrom = vi.fn();
 const mockGetUser = vi.fn();
 

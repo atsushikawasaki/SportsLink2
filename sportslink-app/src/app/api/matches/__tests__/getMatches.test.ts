@@ -92,7 +92,7 @@ describe('getMatches', () => {
     const request = new Request('http://localhost/api/matches?tournament_id=tournament-123');
 
     const response = await getMatches(request);
-    const data = await response.json();
+    await response.json();
 
     expect(response.status).toBe(200);
     expect(mockEq).toHaveBeenCalledWith('tournament_id', 'tournament-123');
@@ -113,7 +113,7 @@ describe('getMatches', () => {
     const request = new Request('http://localhost/api/matches?status=inprogress');
 
     const response = await getMatches(request);
-    const data = await response.json();
+    await response.json();
 
     expect(response.status).toBe(200);
     expect(mockEq).toHaveBeenCalledWith('status', 'inprogress');
@@ -135,7 +135,7 @@ describe('getMatches', () => {
     const request = new Request('http://localhost/api/matches?tournament_id=tournament-123&status=inprogress');
 
     const response = await getMatches(request);
-    const data = await response.json();
+    await response.json();
 
     expect(response.status).toBe(200);
     expect(mockEq).toHaveBeenCalledWith('tournament_id', 'tournament-123');

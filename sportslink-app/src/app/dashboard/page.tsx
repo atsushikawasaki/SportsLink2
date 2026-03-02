@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Trophy, Users, Calendar, Plus, ArrowRight, Play, Clock, Award, ChevronRight } from 'lucide-react';
 import AppHeader from '@/components/AppHeader';
-import { SkeletonCard, SkeletonList } from '@/components/Skeleton';
+import { SkeletonList } from '@/components/Skeleton';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useDashboard } from '@/lib/hooks/queries/useDashboard';
 
@@ -16,15 +16,6 @@ interface Tournament {
     status: 'draft' | 'published' | 'finished';
     is_public: boolean;
     created_at: string;
-}
-
-interface Match {
-    id: string;
-    round_name: string;
-    match_number: number;
-    status: 'pending' | 'inprogress' | 'finished';
-    tournaments?: { id: string; name: string };
-    match_pairs?: Array<{ teams?: { name: string } }>;
 }
 
 export default function DashboardPage() {

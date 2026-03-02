@@ -7,7 +7,7 @@ import type { Database } from '@/types/database.types';
  * サービスロールキーを使用してRLSをバイパスします
  * 注意: このクライアントはサーバーサイドでのみ使用してください
  */
-export function createAdminClient(): SupabaseClient<any> {
+export function createAdminClient(): SupabaseClient<Database> {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -24,6 +24,6 @@ export function createAdminClient(): SupabaseClient<any> {
             autoRefreshToken: false,
             persistSession: false,
         },
-    }) as SupabaseClient<any>;
+    });
 }
 

@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createMatch } from '../createMatch';
 
-const mockInsert = vi.fn();
-const mockSelect = vi.fn();
 const mockSingle = vi.fn();
 const mockFrom = vi.fn();
 const mockGetUser = vi.fn().mockResolvedValue({

@@ -76,7 +76,7 @@ export async function exportEntries(id: string) {
             .map((e) => e.pair_id)
             .filter((pid): pid is string => pid != null);
 
-        const { data: pairs, error: pairsError } =
+        const { data: pairs } =
             pairIds.length > 0
                 ? await supabase
                     .from('tournament_pairs')
@@ -97,7 +97,7 @@ export async function exportEntries(id: string) {
                 )
             `)
                     .in('id', pairIds)
-                : { data: null, error: null };
+                : { data: null };
 
         const teamIds = new Set<string>();
         (pairs ?? []).forEach((p: Record<string, unknown>) => {

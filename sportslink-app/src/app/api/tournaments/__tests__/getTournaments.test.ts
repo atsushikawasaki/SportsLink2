@@ -91,7 +91,7 @@ describe('getTournaments', () => {
     const request = new Request('http://localhost/api/tournaments?status=published');
 
     const response = await getTournaments(request);
-    const data = await response.json();
+    await response.json();
 
     expect(response.status).toBe(200);
     expect(mockEq).toHaveBeenCalledWith('status', 'published');

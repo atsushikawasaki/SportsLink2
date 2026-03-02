@@ -41,7 +41,7 @@ describe('submitMatchPairs', () => {
     const deleteChain = { eq: vi.fn().mockResolvedValue({ error: null }) };
     const insertChain = { select: vi.fn().mockResolvedValue({ data: [{ id: 'pair-1' }], error: null }) };
 
-    mockFrom.mockImplementation((table: string) => ({
+    mockFrom.mockImplementation((_table: string) => ({
       select: mockSelect,
       eq: mockEq,
       single: mockSingle,

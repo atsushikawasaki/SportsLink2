@@ -10,16 +10,6 @@ import { createAdminClient } from '@/lib/supabase/admin';
 export type MatchType = 'team_match' | 'individual_match';
 export type WinningReason = 'NORMAL' | 'RETIRE' | 'DEFAULT';
 
-interface MatchScore {
-    match_id: string;
-    game_count_a: number;
-    game_count_b: number;
-    final_score: string | null;
-    winner_id: string | null;
-    ended_at: string | null;
-    winning_reason: WinningReason | null;
-}
-
 interface Match {
     id: string;
     tournament_id: string;
@@ -235,7 +225,7 @@ export async function shouldFinishParentMatch(parentMatchId: string): Promise<bo
     const totalMatches = childMatches.length;
     const majority = Math.ceil(totalMatches / 2);
 
-    for (const [teamId, wins] of Object.entries(teamWins)) {
+    for (const [, wins] of Object.entries(teamWins)) {
         if (wins >= majority) {
             return true;
         }
@@ -468,7 +458,7 @@ export async function propagateWinnerToNextMatch(
     if (existingPair) {
         if (isTeam) {
             const tournamentPair = await resolveTournamentPairForTeam();
-            const updateData: any = { team_id: winnerId };
+            const updateData: { team_id: string; player_1_id?: string | null; player_2_id?: string | null } = { team_id: winnerId };
             if (tournamentPair) {
                 updateData.player_1_id = tournamentPair.player_1_id;
                 updateData.player_2_id = tournamentPair.player_2_id;
@@ -497,7 +487,13 @@ export async function propagateWinnerToNextMatch(
             }
         }
     } else {
-        const pairData: any = {
+        const pairData: {
+            match_id: string;
+            pair_number: number;
+            team_id?: string | null;
+            player_1_id?: string | null;
+            player_2_id?: string | null;
+        } = {
             match_id: match.next_match_id,
             pair_number: slotNumber,
         };
@@ -598,8 +594,7 @@ export async function processMatchFinish(matchId: string): Promise<void> {
     // Determine winner
     const winnerId = await determineMatchWinner(matchId);
     if (!winnerId) {
-        const err = new Error(`Could not determine winner for match: ${matchId}`);
-        (err as any).code = 'NO_WINNER';
+        const err = Object.assign(new Error(`Could not determine winner for match: ${matchId}`), { code: 'NO_WINNER' });
         throw err;
     }
 

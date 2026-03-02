@@ -230,7 +230,7 @@ describe('finishMatch', () => {
   it('should return 400 when scores are tied (no winner)', async () => {
     const { processMatchFinish } = await import('@/lib/services/matchFlowService');
     const noWinnerError = new Error('Could not determine winner');
-    (noWinnerError as any).code = 'NO_WINNER';
+    (noWinnerError as unknown as { code: string }).code = 'NO_WINNER';
     vi.mocked(processMatchFinish).mockRejectedValueOnce(noWinnerError);
 
     const mockMatch = {

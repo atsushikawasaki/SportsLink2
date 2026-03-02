@@ -5,7 +5,6 @@ import { confirmAsync } from '@/lib/toast';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useParams, useRouter } from 'next/navigation';
 import { useMatchStore } from '@/features/scoring/hooks/useMatchStore';
-import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { useNotificationStore } from '@/features/notifications/hooks/useNotificationStore';
 import { ArrowLeft, Undo2, Wifi, WifiOff, Pause, Play, AlertTriangle } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
@@ -68,8 +67,7 @@ export default function ScoringPage() {
         resetMatch,
     } = useMatchStore();
 
-    const { user } = useAuthStore();
-    const { getAuthKey, addNotification } = useNotificationStore();
+    const { addNotification } = useNotificationStore();
     const supabase = useMemo(() => createClient(), []);
     // Refs to avoid recreating Realtime subscriptions on score changes
     const currentScoreARef = useRef(currentScoreA);
@@ -290,7 +288,7 @@ export default function ScoringPage() {
             setIsVerified(true);
             setShowTokenModal(false);
             setTokenError(null);
-        } catch (error) {
+        } catch {
             setTokenError('認証キーの検証に失敗しました');
         }
     };

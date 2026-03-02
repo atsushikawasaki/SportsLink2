@@ -117,7 +117,7 @@ describe('deleteAccount', () => {
 
   it('should return 401 when password is incorrect', async () => {
     const bcrypt = await import('bcryptjs');
-    (bcrypt.default.compare as any).mockResolvedValue(false);
+    (bcrypt.default.compare as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(false);
 
     mockGetUser.mockResolvedValue({
       data: {
@@ -155,7 +155,7 @@ describe('deleteAccount', () => {
 
   it('should delete account successfully', async () => {
     const bcrypt = await import('bcryptjs');
-    (bcrypt.default.compare as any).mockResolvedValue(true);
+    (bcrypt.default.compare as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(true);
 
     mockGetUser.mockResolvedValue({
       data: {
@@ -236,7 +236,7 @@ describe('deleteAccount', () => {
 
   it('should continue deletion even when auth deletion fails', async () => {
     const bcrypt = await import('bcryptjs');
-    (bcrypt.default.compare as any).mockResolvedValue(true);
+    (bcrypt.default.compare as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(true);
 
     mockGetUser.mockResolvedValue({
       data: {
@@ -279,7 +279,7 @@ describe('deleteAccount', () => {
 
   it('should return 500 on database error', async () => {
     const bcrypt = await import('bcryptjs');
-    (bcrypt.default.compare as any).mockResolvedValue(true);
+    (bcrypt.default.compare as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(true);
 
     mockGetUser.mockResolvedValue({
       data: {

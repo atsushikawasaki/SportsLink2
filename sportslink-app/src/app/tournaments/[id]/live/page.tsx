@@ -28,22 +28,23 @@ interface Match {
     }>;
 }
 
+interface Tournament {
+    id: string;
+    name: string;
+}
+
 export default function LivePage() {
     const params = useParams();
     const tournamentId = params.id as string;
 
-    const [tournament, setTournament] = useState<any>(null);
+    const [tournament, setTournament] = useState<Tournament | null>(null);
     const [matches, setMatches] = useState<Match[]>([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
     const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null);
     const supabase = useMemo(() => createClient(), []);
 
     const fetchData = useCallback(async () => {
         try {
-            setError(null);
-
-            // 並列で取得
             const [tournamentRes, matchesRes] = await Promise.all([
                 fetch(`/api/tournaments/${tournamentId}`),
                 fetch(`/api/scoring/live?tournament_id=${tournamentId}`),
@@ -62,7 +63,6 @@ export default function LivePage() {
             }
         } catch (err) {
             console.error('Failed to fetch live matches:', err);
-            setError('データの取得に失敗しました');
         } finally {
             setLoading(false);
         }

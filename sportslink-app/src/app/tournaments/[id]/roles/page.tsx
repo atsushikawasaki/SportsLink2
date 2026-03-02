@@ -1,11 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { toast } from '@/lib/toast';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
-import { useParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { ArrowLeft, Save } from 'lucide-react';
+import { useParams } from 'next/navigation';
+import { Save } from 'lucide-react';
 import AppHeader from '@/components/AppHeader';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import TournamentSubNav from '@/components/TournamentSubNav';
@@ -23,48 +22,42 @@ interface Role {
     users?: User;
 }
 
+interface Tournament {
+    id: string;
+    name: string;
+}
+
 export default function RolesPage() {
     const params = useParams();
-    const router = useRouter();
     const tournamentId = params.id as string;
 
-    const [tournament, setTournament] = useState<any>(null);
+    const [tournament, setTournament] = useState<Tournament | null>(null);
     const [users, setUsers] = useState<User[]>([]);
     const [roles, setRoles] = useState<Role[]>([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
     const [roleAssignments, setRoleAssignments] = useState<Record<string, { tournament_admin: boolean; scorer: boolean }>>({});
     const [isSaving, setIsSaving] = useState(false);
 
-    useEffect(() => {
-        fetchData();
-    }, [tournamentId]);
-
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         try {
             setLoading(true);
-            setError(null);
 
-            // 大会情報取得
             const tournamentRes = await fetch(`/api/tournaments/${tournamentId}`);
             const tournamentData = await tournamentRes.json();
             if (tournamentRes.ok) {
                 setTournament(tournamentData);
             }
 
-            // ユーザー一覧取得
             const usersRes = await fetch('/api/auth/users');
             const usersData = await usersRes.json();
             if (usersRes.ok) {
                 setUsers(usersData.data || []);
             }
 
-            // 権限一覧取得
             const rolesRes = await fetch(`/api/roles/tournaments/${tournamentId}`);
             const rolesData = await rolesRes.json();
             if (rolesRes.ok) {
                 setRoles(rolesData.data || []);
-                // 初期状態を設定
                 const initialAssignments: Record<string, { tournament_admin: boolean; scorer: boolean }> = {};
                 usersData.data?.forEach((user: User) => {
                     initialAssignments[user.id] = {
@@ -81,11 +74,14 @@ export default function RolesPage() {
             }
         } catch (err) {
             console.error('Failed to fetch data:', err);
-            setError('データの取得に失敗しました');
         } finally {
             setLoading(false);
         }
-    };
+    }, [tournamentId]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
 
     const handleRoleChange = (userId: string, role: 'tournament_admin' | 'scorer', checked: boolean) => {
         setRoleAssignments((prev) => ({
@@ -102,7 +98,7 @@ export default function RolesPage() {
             setIsSaving(true);
 
             // 変更を検出してAPI呼び出し
-            const promises: Promise<any>[] = [];
+            const promises: Promise<Response>[] = [];
 
             users.forEach((user) => {
                 const current = roleAssignments[user.id];

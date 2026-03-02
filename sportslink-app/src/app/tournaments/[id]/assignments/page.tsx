@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { toast } from '@/lib/toast';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import CollapsibleFilters from '@/components/ui/CollapsibleFilters';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Save, Filter } from 'lucide-react';
+import { Save, Filter } from 'lucide-react';
 import AppHeader from '@/components/AppHeader';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import TournamentSubNav from '@/components/TournamentSubNav';
@@ -37,45 +37,40 @@ interface Umpire {
     email: string;
 }
 
+interface Tournament {
+    id: string;
+    name: string;
+}
+
 export default function AssignmentsPage() {
     const params = useParams();
-    const router = useRouter();
     const tournamentId = params.id as string;
 
-    const [tournament, setTournament] = useState<any>(null);
+    const [tournament, setTournament] = useState<Tournament | null>(null);
     const [matches, setMatches] = useState<Match[]>([]);
     const [umpires, setUmpires] = useState<Umpire[]>([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
     const [statusFilter, setStatusFilter] = useState<MatchStatusFilter>('all');
     const [roundFilter, setRoundFilter] = useState<string>('all');
     const [assignments, setAssignments] = useState<Record<string, { umpire_id?: string; court_number?: number }>>({});
     const [isSaving, setIsSaving] = useState(false);
 
-    useEffect(() => {
-        fetchData();
-    }, [tournamentId]);
-
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         try {
             setLoading(true);
-            setError(null);
 
-            // 大会情報取得
             const tournamentRes = await fetch(`/api/tournaments/${tournamentId}`);
             const tournamentData = await tournamentRes.json();
             if (tournamentRes.ok) {
                 setTournament(tournamentData);
             }
 
-            // 試合一覧取得
             const matchesRes = await fetch(`/api/tournaments/${tournamentId}/matches`);
             const matchesData = await matchesRes.json();
             if (matchesRes.ok) {
                 setMatches(matchesData.data || []);
             }
 
-            // 審判一覧取得
             const umpiresRes = await fetch('/api/auth/umpires');
             const umpiresData = await umpiresRes.json();
             if (umpiresRes.ok) {
@@ -83,11 +78,14 @@ export default function AssignmentsPage() {
             }
         } catch (err) {
             console.error('Failed to fetch data:', err);
-            setError('データの取得に失敗しました');
         } finally {
             setLoading(false);
         }
-    };
+    }, [tournamentId]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
 
     const handleAssignmentChange = (
         matchId: string,
@@ -134,7 +132,7 @@ export default function AssignmentsPage() {
             toast.success('保存しました');
             fetchData();
             setAssignments({});
-        } catch (err) {
+        } catch {
             toast.error('保存に失敗しました');
         } finally {
             setIsSaving(false);
@@ -168,7 +166,7 @@ export default function AssignmentsPage() {
             }
 
             fetchData();
-        } catch (err) {
+        } catch {
             toast.error('審判の変更に失敗しました');
         }
     };

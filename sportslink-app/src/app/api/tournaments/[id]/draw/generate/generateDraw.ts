@@ -55,7 +55,6 @@ function getPlacementPriority(N: number): number[] {
             }
         }
     }
-    const remainder = rest.length - restOrdered.length;
     for (let i = restOrdered.length; i < rest.length; i++) restOrdered.push(rest[i]);
     return [...top, ...restOrdered];
 }
@@ -68,25 +67,6 @@ function getSeedOrder(n: number, _divisions?: number): number[] {
     return getPlacementPriority(n);
 }
 
-/**
- * ブラケットサイズ N からデフォルトの分割数を返す。
- * 枠数・BYE 数に応じて変える（N=8→2, N=16→4, N=32→8）。
- */
-function getDefaultDivisions(n: number): number {
-    if (n <= 8) return 2;
-    return Math.max(2, Math.min(Math.floor(n / 4), 8));
-}
-
-/** ソフトテニス標準: 四隅のインデックス（1, N, N/4, 3N/4 を 1-based としたときの 0-based） */
-function getFourCornerIndices(N: number): number[] {
-    if (N <= 4) return [0, N - 1];
-    const a = 0;
-    const b = N - 1;
-    const c = Math.floor(N / 4) - 1; // 1-based N/4 → index
-    const d = Math.floor((3 * N) / 4); // 1-based 3N/4 → index (3N/4 番目 = index 3N/4 - 1 の次のイメージで 3N/4 付近)
-    const corners = [a, b, Math.min(c, N - 1), Math.min(d, N - 1)];
-    return Array.from(new Set(corners)).sort((x, y) => x - y);
-}
 
 /**
  * 1回戦で「実戦枠」（パック配置）にするペアのインデックスを返す。
@@ -349,14 +329,12 @@ export async function generateDraw(id: string, request?: Request) {
         const S = getRecommendedSeedCount(N);
 
         const bracketSize = N;
-        const entryCount = M;
 
         // ========== 2. 配置の優先順位アルゴリズム（再帰的二分法） ==========
         // シードとBYEは「強い選手ほど初戦でBYEになり、互いに決勝まで当たらない」ように配置する。
         // 優先順位表: getSeedOrder(N) で枠の並びを定義し、リストの最後から順に BYE を割り当てる。
         const P = N / 2; // 1回戦のペア数
         const fullPairCount = M - P; // 両方エントリーのペア数（実戦枠）
-        const byePairCount = B;     // 1エントリー+1BYEのペア数（B と一致）
 
         // シードの優先配置: getPlacementPriority(N) で 1, N, N/4付近, 3N/4付近 を最優先に
         const placementOrder = getPlacementPriority(N);
@@ -448,7 +426,7 @@ export async function generateDraw(id: string, request?: Request) {
         // ラウンド数（1始まり: 1回戦=1, 決勝=roundCount）
         const roundCount = Math.log2(bracketSize);
 
-        const insertedMatches: any[] = [];
+        const insertedMatches: { id: string; round_index: number; slot_index: number }[] = [];
         let matchNumber = 1;
         const byeMatchIds: { matchId: string; winnerId: string }[] = [];
 
@@ -571,7 +549,7 @@ export async function generateDraw(id: string, request?: Request) {
         const nextMatchUpdates: { id: string; next_match_id: string }[] = [];
         const sourceUpdates: { id: string; winner_source_match_a?: string; winner_source_match_b?: string }[] = [];
         // 次ラウンドの試合を素早く検索するためのマップ
-        const matchByRoundSlot = new Map<string, any>();
+        const matchByRoundSlot = new Map<string, { id: string; round_index: number; slot_index: number }>();
         for (const match of insertedMatches) {
             matchByRoundSlot.set(`${match.round_index}:${match.slot_index}`, match);
         }

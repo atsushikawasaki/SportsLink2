@@ -3,7 +3,6 @@ import { deleteTeam } from '../deleteTeam';
 
 const mockFrom = vi.fn();
 const mockDelete = vi.fn();
-const mockEq = vi.fn();
 const mockGetUser = vi.fn().mockResolvedValue({
   data: { user: { id: 'user-123' } },
   error: null,

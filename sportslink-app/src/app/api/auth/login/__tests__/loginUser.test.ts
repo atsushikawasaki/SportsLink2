@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { NextResponse } from 'next/server';
 import { loginUser } from '../loginUser';
 
 // Supabaseクライアントをモック
@@ -115,7 +114,7 @@ describe('loginUser', () => {
 
   it('should return 401 when password is invalid', async () => {
     const bcrypt = await import('bcryptjs');
-    (bcrypt.default.compare as any).mockResolvedValue(false);
+    (bcrypt.default.compare as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(false);
 
     mockSignInWithPassword.mockResolvedValue({
       data: null,

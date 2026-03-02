@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database.types';
 
-export async function createClient(): Promise<SupabaseClient<any>> {
+export async function createClient(): Promise<SupabaseClient<Database>> {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (!supabaseUrl || !supabaseAnonKey) {
@@ -35,5 +35,5 @@ export async function createClient(): Promise<SupabaseClient<any>> {
                 },
             },
         }
-    ) as SupabaseClient<any>;
+    );
 }

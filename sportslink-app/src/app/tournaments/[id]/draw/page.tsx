@@ -3,9 +3,9 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { toast, confirmAsync } from '@/lib/toast';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, RefreshCw, List, Grid, Edit, Save, X } from 'lucide-react';
+import { RefreshCw, List, Grid, Edit, Save, X } from 'lucide-react';
 import AppHeader from '@/components/AppHeader';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import TournamentSubNav from '@/components/TournamentSubNav';
@@ -69,12 +69,16 @@ interface Phase {
     sequence: number;
 }
 
+interface Tournament {
+    id: string;
+    name: string;
+}
+
 export default function DrawPage() {
     const params = useParams();
-    const router = useRouter();
     const tournamentId = params.id as string;
 
-    const [tournament, setTournament] = useState<any>(null);
+    const [tournament, setTournament] = useState<Tournament | null>(null);
     const [phases, setPhases] = useState<Phase[]>([]);
     const [matches, setMatches] = useState<Match[]>([]);
     const [loading, setLoading] = useState(true);

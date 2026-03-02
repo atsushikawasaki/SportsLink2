@@ -48,7 +48,8 @@ export async function updateDraw(id: string, request: Request) {
         }
 
         // 各試合を更新
-        const updates = matches.map((match: any) =>
+        type MatchInput = { id: string; umpire_id?: string | null; court_number?: number | null; status?: string | null };
+        const updates = matches.map((match: MatchInput) =>
             supabase
                 .from('matches')
                 .update({

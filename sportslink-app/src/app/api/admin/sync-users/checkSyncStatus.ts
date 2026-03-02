@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server';
 /**
  * 同期前の状態を確認する。本番で ALLOW_USER_SYNC 時は管理者ロール必須。
  */
-export async function checkSyncStatus(request: Request) {
+export async function checkSyncStatus(_request: Request) {
     if (process.env.NODE_ENV !== 'development' && process.env.ALLOW_USER_SYNC !== 'true') {
         return NextResponse.json(
             { error: 'This endpoint is only available in development or when ALLOW_USER_SYNC is set' },

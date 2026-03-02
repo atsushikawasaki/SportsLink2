@@ -105,7 +105,7 @@ export async function getMatch(id: string) {
 
         // Sort match_pairs by pair_number
         const sortedPairs = (matchData.match_pairs || []).sort(
-            (a: any, b: any) => (a.pair_number || 0) - (b.pair_number || 0)
+            (a: { pair_number?: number }, b: { pair_number?: number }) => (a.pair_number || 0) - (b.pair_number || 0)
         );
 
         const scores = matchData.match_scores;

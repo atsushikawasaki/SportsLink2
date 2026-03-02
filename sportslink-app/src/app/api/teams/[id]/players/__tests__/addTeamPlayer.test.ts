@@ -61,7 +61,7 @@ describe('addTeamPlayer', () => {
     const insertChain = { select: vi.fn().mockReturnValue({ single: mockSingle }) };
     const updateChain = { eq: vi.fn().mockResolvedValue({ error: null }) };
 
-    mockFrom.mockImplementation((table: string) => ({
+    mockFrom.mockImplementation((_table: string) => ({
       select: mockSelect,
       eq: mockEq,
       single: mockSingle,

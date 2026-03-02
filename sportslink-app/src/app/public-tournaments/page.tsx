@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Trophy, Search, Filter, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 import NotificationCenter from '@/components/NotificationCenter';
@@ -21,23 +20,17 @@ interface Tournament {
 }
 
 export default function PublicTournamentsPage() {
-    const router = useRouter();
     const { isAuthenticated } = useAuthStore();
     const [tournaments, setTournaments] = useState<Tournament[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
-    const [typeFilter, setTypeFilter] = useState<'all' | 'managed' | 'entered' | 'public'>('all');
     const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'finished' | 'draft'>('all');
     const [page, setPage] = useState(1);
     const [totalCount, setTotalCount] = useState(0);
     const limit = 20;
 
-    useEffect(() => {
-        fetchTournaments();
-    }, [page]);
-
-    const fetchTournaments = async () => {
+    const fetchTournaments = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
@@ -51,7 +44,6 @@ export default function PublicTournamentsPage() {
                 return;
             }
 
-            // 公開大会のみフィルタリング（API側でフィルタリングされていない場合のフォールバック）
             const publicTournaments = (result.data || []).filter((t: Tournament) => t.is_public);
             setTournaments(publicTournaments);
             setTotalCount(result.count || publicTournaments.length);
@@ -61,7 +53,11 @@ export default function PublicTournamentsPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [page, limit]);
+
+    useEffect(() => {
+        fetchTournaments();
+    }, [fetchTournaments]);
 
     const getStatusBadge = (status: string) => {
         switch (status) {
@@ -146,7 +142,7 @@ export default function PublicTournamentsPage() {
                         <Filter className="w-4 h-4 text-slate-400" />
                         <select
                             value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value as any)}
+                            onChange={(e) => setStatusFilter(e.target.value as 'all' | 'published' | 'finished' | 'draft')}
                             className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
                         >
                             <option value="all">すべてのステータス</option>

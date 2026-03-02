@@ -1,9 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { startMatch } from '../start/startMatch';
 
-const mockUpdate = vi.fn();
-const mockEq = vi.fn();
-const mockSelect = vi.fn();
 const mockSingle = vi.fn();
 const mockFrom = vi.fn();
 const mockGetUser = vi.fn().mockResolvedValue({

@@ -43,7 +43,7 @@ describe('getTeams', () => {
       select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ not: mockEq }) }),
     });
 
-    const mockIn = vi.fn().mockReturnValue({
+    vi.fn().mockReturnValue({
       order: vi.fn().mockReturnValue({
         range: vi.fn().mockResolvedValue({
           data: [{ id: 'team-1', name: 'Team A' }],
@@ -69,7 +69,7 @@ describe('getTeams', () => {
 
     const request = new Request('http://localhost/api/teams?tournament_id=tournament-123');
     const response = await getTeams(request);
-    const data = await response.json();
+    await response.json();
 
     expect(response.status).toBe(200);
     expect(mockFrom).toHaveBeenCalledWith('tournament_entries');

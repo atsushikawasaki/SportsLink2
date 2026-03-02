@@ -66,10 +66,11 @@ export async function exportResults(id: string, request: Request) {
         }
 
         // Format match results
+        type MatchPair = { pair_number: number; teams?: { name: string } | null };
         const results = (matches || []).map((match) => {
-            const pairs = match.match_pairs || [];
-            const teamA = pairs.find((p: any) => p.pair_number === 1)?.teams;
-            const teamB = pairs.find((p: any) => p.pair_number === 2)?.teams;
+            const pairs = (match.match_pairs || []) as MatchPair[];
+            const teamA = pairs.find((p) => p.pair_number === 1)?.teams;
+            const teamB = pairs.find((p) => p.pair_number === 2)?.teams;
             const score = match.match_scores?.[0];
 
             return {

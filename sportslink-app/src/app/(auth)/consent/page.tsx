@@ -4,13 +4,17 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import Link from 'next/link';
-import { AlertCircle, CheckCircle } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 export default function ConsentPage() {
     const router = useRouter();
-    const { user, isAuthenticated } = useAuthStore();
-    const [consentStatus, setConsentStatus] = useState<any>(null);
+    const { isAuthenticated } = useAuthStore();
+    const [consentStatus, setConsentStatus] = useState<{
+        needs_reconsent: boolean;
+        terms?: { needs_reconsent: boolean; current_version: string; agreed_version?: string };
+        privacy?: { needs_reconsent: boolean; current_version: string; agreed_version?: string };
+    } | null>(null);
     const [agreeTerms, setAgreeTerms] = useState(false);
     const [agreePrivacy, setAgreePrivacy] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
@@ -47,7 +51,7 @@ export default function ConsentPage() {
             setConsentStatus(result);
             setAgreeTerms(result.terms?.needs_reconsent || false);
             setAgreePrivacy(result.privacy?.needs_reconsent || false);
-        } catch (err) {
+        } catch {
             setError('同意状況の確認に失敗しました');
         } finally {
             setIsLoading(false);
@@ -81,7 +85,7 @@ export default function ConsentPage() {
             }
 
             router.push('/dashboard');
-        } catch (err) {
+        } catch {
             setError('再同意の処理に失敗しました');
         } finally {
             setIsSubmitting(false);

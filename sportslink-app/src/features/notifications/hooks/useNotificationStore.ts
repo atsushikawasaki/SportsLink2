@@ -12,7 +12,7 @@ export interface Notification {
         day_token?: string;
         match_id?: string;
         tournament_id?: string;
-        [key: string]: any;
+        [key: string]: string | undefined;
     };
     read: boolean;
     createdAt: string;

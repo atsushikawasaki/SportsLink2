@@ -15,7 +15,7 @@ describe('getPermissions', () => {
     const response = await getPermissions();
     const data = await response.json();
 
-    const tournamentAdmin = data.data.find((p: any) => p.role === 'tournament_admin');
+    const tournamentAdmin = data.data.find((p: { role: string; name: string; description: string }) => p.role === 'tournament_admin');
     expect(tournamentAdmin).toBeDefined();
     expect(tournamentAdmin.name).toBe('大会運営者');
   });
@@ -24,7 +24,7 @@ describe('getPermissions', () => {
     const response = await getPermissions();
     const data = await response.json();
 
-    const scorer = data.data.find((p: any) => p.role === 'scorer');
+    const scorer = data.data.find((p: { role: string; name: string; description: string }) => p.role === 'scorer');
     expect(scorer).toBeDefined();
     expect(scorer.name).toBe('審判');
   });
@@ -33,7 +33,7 @@ describe('getPermissions', () => {
     const response = await getPermissions();
     const data = await response.json();
 
-    const teamManager = data.data.find((p: any) => p.role === 'team_manager');
+    const teamManager = data.data.find((p: { role: string; name: string; description: string }) => p.role === 'team_manager');
     expect(teamManager).toBeDefined();
     expect(teamManager.name).toBe('チーム管理者');
   });
@@ -42,7 +42,7 @@ describe('getPermissions', () => {
     const response = await getPermissions();
     const data = await response.json();
 
-    const master = data.data.find((p: any) => p.role === 'master');
+    const master = data.data.find((p: { role: string; name: string; description: string }) => p.role === 'master');
     expect(master).toBeDefined();
     expect(master.name).toBe('マスタ');
   });
@@ -51,7 +51,7 @@ describe('getPermissions', () => {
     const response = await getPermissions();
     const data = await response.json();
 
-    const masterManager = data.data.find((p: any) => p.role === 'master_manager');
+    const masterManager = data.data.find((p: { role: string; name: string; description: string }) => p.role === 'master_manager');
     expect(masterManager).toBeDefined();
     expect(masterManager.name).toBe('マスタ管理者');
   });
@@ -60,7 +60,7 @@ describe('getPermissions', () => {
     const response = await getPermissions();
     const data = await response.json();
 
-    data.data.forEach((permission: any) => {
+    data.data.forEach((permission: { description: string }) => {
       expect(permission.description).toBeDefined();
       expect(typeof permission.description).toBe('string');
     });

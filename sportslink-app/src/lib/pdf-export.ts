@@ -53,8 +53,6 @@ export async function exportToPDF(data: TournamentResults) {
 
         // 試合結果テーブル
         doc.setFontSize(10);
-        const tableStartY = yPosition;
-
         // ヘッダー
         doc.setFont('helvetica', 'bold');
         doc.text('ラウンド', margin, yPosition);

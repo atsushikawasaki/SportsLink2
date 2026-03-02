@@ -57,7 +57,7 @@ export function notifyError(error: Omit<OfflineError, 'timestamp'>) {
         data: {
             error_code: error.code,
             error_type: error.type,
-            error_details: error.details !== undefined ? String(error.details) : undefined,
+            error_details: error.details,
         },
     });
 

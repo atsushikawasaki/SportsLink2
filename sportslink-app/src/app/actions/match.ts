@@ -104,8 +104,16 @@ export async function updateMatchAction(matchId: string, data: unknown) {
     if (authError || !user) throw new Error('認証が必要です');
 
     const parsed = updateMatchSchema.parse(data);
-    const tournamentId = await getMatchTournamentId(matchId);
-    if (!tournamentId) throw new Error('試合が見つかりません');
+
+    const { data: match } = await supabase
+        .from('matches')
+        .select('tournament_id, version')
+        .eq('id', matchId)
+        .single();
+    if (!match) throw new Error('試合が見つかりません');
+
+    const tournamentId = match.tournament_id as string;
+    const currentVersion = match.version as number;
 
     const [umpire, tournamentAdmin, admin] = await Promise.all([
         isUmpire(user.id, tournamentId, matchId),
@@ -114,13 +122,23 @@ export async function updateMatchAction(matchId: string, data: unknown) {
     ]);
     if (!umpire && !tournamentAdmin && !admin) throw new Error('この試合を更新する権限がありません');
 
-    const updatePayload: Record<string, unknown> = {};
+    const updatePayload: Record<string, unknown> = { version: currentVersion + 1 };
     for (const [k, v] of Object.entries(parsed)) {
         if (v !== undefined) updatePayload[k] = v;
     }
 
-    const { error } = await supabase.from('matches').update(updatePayload).eq('id', matchId);
-    if (error) throw new Error('試合の更新に失敗しました');
+    const { error } = await supabase
+        .from('matches')
+        .update(updatePayload)
+        .eq('id', matchId)
+        .eq('version', currentVersion)
+        .select('id')
+        .single();
+
+    if (error) {
+        if (error.code === 'PGRST116') throw new Error('他のユーザーが更新しました。最新情報を確認してください');
+        throw new Error('試合の更新に失敗しました');
+    }
 
     revalidatePath(`/tournaments/${tournamentId}/assignments`);
     revalidatePath(`/matches/${matchId}`);

@@ -27,7 +27,7 @@ export async function updateMatchStatus(id: string, request: Request) {
 
         const { data: match, error: matchError } = await supabase
             .from('matches')
-            .select('id, status, tournament_id')
+            .select('id, status, tournament_id, version')
             .eq('id', id)
             .single();
 
@@ -56,14 +56,22 @@ export async function updateMatchStatus(id: string, request: Request) {
             updateData.started_at = new Date().toISOString();
         }
 
+        const currentVersion = match.version as number;
         const { data, error } = await supabase
             .from('matches')
-            .update(updateData)
+            .update({ ...updateData, version: currentVersion + 1 })
             .eq('id', id)
+            .eq('version', currentVersion)
             .select()
             .single();
 
         if (error) {
+            if (error.code === 'PGRST116') {
+                return NextResponse.json(
+                    { error: '他のユーザーが更新しました。最新情報を確認してください', code: 'E-CONFL-002' },
+                    { status: 409 }
+                );
+            }
             return NextResponse.json(
                 { error: error.message, code: 'E-DB-001' },
                 { status: 500 }

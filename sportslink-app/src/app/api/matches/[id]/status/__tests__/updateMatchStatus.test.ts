@@ -95,7 +95,7 @@ describe('updateMatchStatus', () => {
 
   it('should return 200 and update status to inprogress', async () => {
     const mockSingleMatch = vi.fn().mockResolvedValue({
-      data: { id: 'match-123', status: 'pending', tournament_id: 'tournament-123' },
+      data: { id: 'match-123', status: 'pending', tournament_id: 'tournament-123', version: 1 },
       error: null,
     });
     const mockSingleUpdate = vi.fn().mockResolvedValue({
@@ -109,7 +109,9 @@ describe('updateMatchStatus', () => {
       .mockReturnValueOnce({
         update: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
-            select: vi.fn().mockReturnValue({ single: mockSingleUpdate }),
+            eq: vi.fn().mockReturnValue({
+              select: vi.fn().mockReturnValue({ single: mockSingleUpdate }),
+            }),
           }),
         }),
       });
@@ -125,7 +127,7 @@ describe('updateMatchStatus', () => {
 
   it('should return 500 on database error when updating', async () => {
     const mockSingleMatch = vi.fn().mockResolvedValue({
-      data: { id: 'match-123', status: 'pending', tournament_id: 'tournament-123' },
+      data: { id: 'match-123', status: 'pending', tournament_id: 'tournament-123', version: 1 },
       error: null,
     });
     const mockSingleUpdate = vi.fn().mockResolvedValue({
@@ -139,7 +141,9 @@ describe('updateMatchStatus', () => {
       .mockReturnValueOnce({
         update: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
-            select: vi.fn().mockReturnValue({ single: mockSingleUpdate }),
+            eq: vi.fn().mockReturnValue({
+              select: vi.fn().mockReturnValue({ single: mockSingleUpdate }),
+            }),
           }),
         }),
       });

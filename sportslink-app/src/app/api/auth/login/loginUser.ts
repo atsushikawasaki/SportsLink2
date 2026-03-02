@@ -7,6 +7,12 @@ import { Database } from '@/types/database.types';
 
 type User = Database['public']['Tables']['users']['Row'];
 
+function sanitizeUser(user: User | null | undefined): Omit<User, 'password_hash'> | null {
+    if (!user) return null;
+    const { password_hash: _, ...safe } = user;
+    return safe;
+}
+
 export async function loginUser(request: Request) {
     try {
         const { allowed, retryAfter } = checkRateLimit(request, 'login');
@@ -216,8 +222,8 @@ export async function loginUser(request: Request) {
                 if (retryError || !retryData.session) {
                     console.error('Failed to create session after user creation:', retryError);
                     return NextResponse.json(
-                        { 
-                            error: 'セッションの作成に失敗しました', 
+                        {
+                            error: 'セッションの作成に失敗しました',
                             code: 'E-AUTH-002',
                             details: process.env.NODE_ENV === 'development' ? retryError?.message : undefined,
                         },
@@ -227,7 +233,7 @@ export async function loginUser(request: Request) {
 
                 // 成功した場合、通常のフローに戻る
                 return NextResponse.json({
-                    user: userProfile,
+                    user: sanitizeUser(userProfile),
                     session: {
                         access_token: retryData.session.access_token,
                         refresh_token: retryData.session.refresh_token,
@@ -289,7 +295,7 @@ export async function loginUser(request: Request) {
 
                 // 成功した場合、通常のフローに戻る
                 return NextResponse.json({
-                    user: userProfile,
+                    user: sanitizeUser(userProfile),
                     session: {
                         access_token: retryData.session.access_token,
                         refresh_token: retryData.session.refresh_token,
@@ -326,7 +332,7 @@ export async function loginUser(request: Request) {
         }
 
         return NextResponse.json({
-            user: userProfile || {
+            user: sanitizeUser(userProfile) || {
                 id: data.user.id,
                 email: data.user.email,
                 created_at: data.user.created_at,

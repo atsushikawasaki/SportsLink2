@@ -14,6 +14,14 @@ export async function getMatches(request: Request) {
 
         const supabase = await createClient();
 
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+        if (authError || !authUser) {
+            return NextResponse.json(
+                { error: '認証が必要です', code: 'E-AUTH-001' },
+                { status: 401 }
+            );
+        }
+
         let query = supabase
             .from('matches')
             .select(`

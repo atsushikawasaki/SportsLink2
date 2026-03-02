@@ -7,9 +7,14 @@ const mockOrder = vi.fn();
 const mockRange = vi.fn();
 const mockEq = vi.fn();
 const mockFrom = vi.fn();
+const mockGetUser = vi.fn().mockResolvedValue({
+  data: { user: { id: 'user-123' } },
+  error: null,
+});
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
+    auth: { getUser: mockGetUser },
     from: mockFrom,
   })),
 }));
@@ -50,6 +55,15 @@ describe('getMatches', () => {
     mockRange.mockReturnValue(mockQueryChain);
     // eq()はthisを返す必要がある（実装でquery = query.eq(...)のように再代入しているため）
     mockEq.mockReturnThis();
+  });
+
+  it('should return 401 when not authenticated', async () => {
+    mockGetUser.mockResolvedValueOnce({ data: { user: null }, error: null });
+    const request = new Request('http://localhost/api/matches');
+    const response = await getMatches(request);
+    const data = await response.json();
+    expect(response.status).toBe(401);
+    expect(data.code).toBe('E-AUTH-001');
   });
 
   it('should get matches with default pagination', async () => {

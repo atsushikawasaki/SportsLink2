@@ -3,9 +3,24 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { getConsentVersions } from '@/lib/consent-versions';
+import { checkRateLimit } from '@/lib/rateLimit';
+
+function omitPasswordHash<T extends { password_hash?: string | null }>(user: T | null): Omit<T, 'password_hash'> | null {
+    if (!user) return null;
+    const { password_hash: _, ...safe } = user;
+    return safe as Omit<T, 'password_hash'>;
+}
 
 export async function signupUser(request: Request) {
     try {
+        const { allowed, retryAfter } = checkRateLimit(request, 'signup');
+        if (!allowed) {
+            return NextResponse.json(
+                { error: 'リクエストが多すぎます。しばらく待ってから再試行してください', code: 'E-RATE-001' },
+                { status: 429, headers: { 'Retry-After': String(retryAfter) } }
+            );
+        }
+
         const { email, password, displayName, agreeTerms } = await request.json();
 
         if (!email || !password || !displayName) {
@@ -137,7 +152,7 @@ export async function signupUser(request: Request) {
             }
 
             return NextResponse.json({
-                user: updatedFallbackProfile || fallbackProfile,
+                user: omitPasswordHash(updatedFallbackProfile || fallbackProfile),
                 message: 'アカウントが作成されました',
             });
         }
@@ -190,7 +205,7 @@ export async function signupUser(request: Request) {
         }
 
         return NextResponse.json({
-            user: updatedProfile || userProfile,
+            user: omitPasswordHash(updatedProfile || userProfile),
             message: 'アカウントが作成されました',
         });
     } catch (error) {

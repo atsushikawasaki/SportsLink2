@@ -1,9 +1,18 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
+import { checkRateLimit } from '@/lib/rateLimit';
 
 export async function updatePassword(request: Request) {
     try {
+        const { allowed, retryAfter } = checkRateLimit(request, 'update-password');
+        if (!allowed) {
+            return NextResponse.json(
+                { error: 'リクエストが多すぎます。しばらく待ってから再試行してください', code: 'E-RATE-001' },
+                { status: 429, headers: { 'Retry-After': String(retryAfter) } }
+            );
+        }
+
         const { currentPassword, newPassword } = await request.json();
 
         if (!currentPassword || !newPassword) {

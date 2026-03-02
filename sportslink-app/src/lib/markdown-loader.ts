@@ -12,6 +12,10 @@ export async function loadMarkdownDocument(
     version: string = 'latest'
 ): Promise<{ content: string; version: string; lastUpdated: string | null }> {
     try {
+        if (version !== 'latest' && !/^\d+\.\d+(\.\d+)?$/.test(version)) {
+            throw new Error(`Invalid version format: ${version}`);
+        }
+
         const filePath = path.join(
             process.cwd(),
             'src',

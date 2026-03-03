@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { toast } from '@/lib/toast';
 import { useParams } from 'next/navigation';
 import { Plus, Upload, Download, CheckCircle, Search, Info } from 'lucide-react';
-import AppHeader from '@/components/AppHeader';
+import AppShell from '@/components/AppShell';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import TournamentSubNav from '@/components/TournamentSubNav';
 import AuthKeyDisplay from '@/components/AuthKeyDisplay';
@@ -322,15 +322,14 @@ export default function EntriesPage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
+            <div className="bg-[var(--color-bg-primary)] flex items-center justify-center min-h-screen">
                 <LoadingSpinner />
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-            <AppHeader />
+        <AppShell>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 {/* Page Header */}
                 <div className="mb-8">
@@ -341,10 +340,10 @@ export default function EntriesPage() {
                             { label: 'エントリー管理' },
                         ]}
                     />
-                    <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent mt-2">
+                    <h1 className="text-3xl font-bold text-[var(--color-text-primary)] mt-2">
                         エントリー管理
                     </h1>
-                    {tournament && <p className="text-slate-400 mt-2">{tournament.name}</p>}
+                    {tournament && <p className="text-[var(--color-text-muted)] mt-2">{tournament.name}</p>}
                 </div>
 
                 <TournamentSubNav tournamentId={tournamentId} />
@@ -355,8 +354,26 @@ export default function EntriesPage() {
                     </div>
                 )}
 
+                {/* Stats Cards */}
+                {!loading && activeTab === 'entries' && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div className="p-4 bg-[var(--color-bg-surface)] rounded-xl border border-[var(--color-border-base)]">
+                            <p className="text-sm text-[var(--color-text-muted)] mb-1">エントリー総数</p>
+                            <p className="text-2xl font-bold text-[var(--color-text-primary)]">{entries.length}</p>
+                        </div>
+                        <div className="p-4 bg-[var(--color-bg-surface)] rounded-xl border border-[var(--color-border-base)]">
+                            <p className="text-sm text-[var(--color-text-muted)] mb-1">チェックイン済み</p>
+                            <p className="text-2xl font-bold text-green-400">{entries.filter(e => e.is_checked_in).length}</p>
+                        </div>
+                        <div className="p-4 bg-[var(--color-bg-surface)] rounded-xl border border-[var(--color-border-base)]">
+                            <p className="text-sm text-[var(--color-text-muted)] mb-1">未チェックイン</p>
+                            <p className="text-2xl font-bold text-yellow-400">{entries.filter(e => !e.is_checked_in).length}</p>
+                        </div>
+                    </div>
+                )}
+
                 {/* Tabs */}
-                <div className="mb-6 flex gap-2 border-b border-slate-700" role="tablist" aria-label="エントリー管理">
+                <div className="mb-6 flex gap-2 border-b border-[var(--color-border-base)]" role="tablist" aria-label="エントリー管理">
                     <button
                         role="tab"
                         aria-selected={activeTab === 'teams'}
@@ -366,7 +383,7 @@ export default function EntriesPage() {
                         className={`px-4 py-2 font-medium transition-colors ${
                             activeTab === 'teams'
                                 ? 'text-blue-400 border-b-2 border-blue-400'
-                                : 'text-slate-400 hover:text-white'
+                                : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'
                         }`}
                     >
                         チーム管理
@@ -380,7 +397,7 @@ export default function EntriesPage() {
                         className={`px-4 py-2 font-medium transition-colors ${
                             activeTab === 'entries'
                                 ? 'text-blue-400 border-b-2 border-blue-400'
-                                : 'text-slate-400 hover:text-white'
+                                : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'
                         }`}
                     >
                         エントリー一覧
@@ -391,7 +408,7 @@ export default function EntriesPage() {
                 {activeTab === 'entries' && (
                     <div className="mb-4 flex flex-wrap items-center gap-4">
                         <div className="relative max-w-md flex-1 min-w-0">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]" />
                             <input
                                 type="text"
                                 placeholder="チーム名・選手名・地域名で検索"
@@ -408,14 +425,13 @@ export default function EntriesPage() {
                                     setSearchQuery(committed);
                                     setSearchQueryDisplay(committed);
                                 }}
-                                className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                className="w-full pl-10 pr-4 py-2 bg-[var(--color-bg-surface)] border border-[var(--color-border-base)] rounded-lg text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
                             />
                         </div>
-                        {/* 件数は常に表示 */}
                         <div className="flex items-center gap-2 flex-shrink-0">
                             {searchQuery.trim() ? (
                                 <>
-                                    <span className="text-sm text-slate-300">
+                                    <span className="text-sm text-[var(--color-text-secondary)]">
                                         <span className="text-blue-400 font-medium">{filteredEntries.length}</span> 件 / 全 {entries.length} 件
                                     </span>
                                     <button
@@ -424,13 +440,13 @@ export default function EntriesPage() {
                                             setSearchQuery('');
                                             setSearchQueryDisplay('');
                                         }}
-                                        className="text-sm text-slate-400 hover:text-white underline"
+                                        className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] underline"
                                     >
                                         検索をクリア
                                     </button>
                                 </>
                             ) : (
-                                <span className="text-sm text-slate-400">全 {entries.length} 件</span>
+                                <span className="text-sm text-[var(--color-text-muted)]">全 {entries.length} 件</span>
                             )}
                         </div>
                     </div>
@@ -450,12 +466,12 @@ export default function EntriesPage() {
                         </>
                     )}
                     <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-slate-300 text-sm">CSVインポート:</span>
+                        <span className="text-[var(--color-text-secondary)] text-sm">CSVインポート:</span>
                         <div className="flex items-center gap-1">
                             <select
                                 value={csvImportMode}
                                 onChange={(e) => setCsvImportMode(e.target.value as 'append' | 'update' | 'replace')}
-                                className="rounded-lg border border-slate-600 bg-slate-800 text-slate-200 px-3 py-2 text-sm"
+                                className="rounded-lg border border-[var(--color-border-base)] bg-[var(--color-bg-surface)] text-[var(--color-text-secondary)] px-3 py-2 text-sm"
                                 title={
                                     csvImportMode === 'append'
                                         ? '既存エントリーに追記します。重複があっても新規として追加されます。'
@@ -469,7 +485,7 @@ export default function EntriesPage() {
                                 <option value="replace">置換（既存を無効化して差し替え）</option>
                             </select>
                             <span
-                                className="text-slate-500 hover:text-slate-300 cursor-help"
+                                className="text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] cursor-help"
                                 title={
                                     csvImportMode === 'append'
                                         ? '既存エントリーに追記します。重複があっても新規として追加されます。'
@@ -507,18 +523,18 @@ export default function EntriesPage() {
                         {teams.map((team) => (
                             <div
                                 key={team.id}
-                                className="p-6 bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50"
+                                className="p-6 bg-[var(--color-bg-surface)] rounded-xl border border-[var(--color-border-base)]"
                             >
-                                <h3 className="text-xl font-semibold text-white mb-2">{team.name}</h3>
-                                <p className="text-slate-400 text-sm mb-4">代表チーム</p>
+                                <h3 className="text-xl font-semibold text-[var(--color-text-primary)] mb-2">{team.name}</h3>
+                                <p className="text-[var(--color-text-muted)] text-sm mb-4">代表チーム</p>
                                 <div className="mb-4">
-                                    <p className="text-slate-300 text-sm mb-2">
+                                    <p className="text-[var(--color-text-secondary)] text-sm mb-2">
                                         選手数: {team.tournament_players?.length || 0}名
                                     </p>
                                     {team.tournament_players && team.tournament_players.length > 0 && (
                                         <div className="space-y-1">
                                             {team.tournament_players.map((player) => (
-                                                <div key={player.id} className="text-xs text-slate-400">
+                                                <div key={player.id} className="text-xs text-[var(--color-text-muted)]">
                                                     {player.player_name} ({player.player_type})
                                                 </div>
                                             ))}
@@ -555,11 +571,11 @@ export default function EntriesPage() {
                             href="/teams"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex flex-col items-center justify-center p-6 bg-slate-800/50 backdrop-blur-xl rounded-xl border border-dashed border-slate-600 hover:border-blue-500 hover:bg-slate-700/30 transition-all min-h-[120px]"
+                            className="flex flex-col items-center justify-center p-6 bg-[var(--color-bg-surface)] rounded-xl border border-dashed border-[var(--color-border-base)] hover:border-blue-500 hover:bg-[var(--color-bg-surface-2)] transition-all min-h-[120px]"
                         >
-                            <Plus className="w-8 h-8 text-slate-400 mb-2" />
-                            <span className="text-slate-400 text-sm">新しいチームを作成</span>
-                            <span className="text-slate-500 text-xs mt-1">チーム管理ページへ</span>
+                            <Plus className="w-8 h-8 text-[var(--color-text-muted)] mb-2" />
+                            <span className="text-[var(--color-text-muted)] text-sm">新しいチームを作成</span>
+                            <span className="text-[var(--color-text-muted)] text-xs mt-1">チーム管理ページへ</span>
                         </a>
                     </div>
                 )}
@@ -567,12 +583,12 @@ export default function EntriesPage() {
                 {activeTab === 'entries' && (
                     <div id="panel-entries" role="tabpanel" aria-labelledby="tab-entries" className="space-y-4">
                         {searchQuery.trim() && (
-                            <p className="text-sm text-slate-400">
+                            <p className="text-sm text-[var(--color-text-muted)]">
                                 検索結果のみ表示しています（フィルター中）
                             </p>
                         )}
                         {filteredEntries.length === 0 ? (
-                            <div className="p-8 bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50 text-center text-slate-400">
+                            <div className="p-8 bg-[var(--color-bg-surface)] rounded-xl border border-[var(--color-border-base)] text-center text-[var(--color-text-muted)]">
                                 {searchQuery.trim()
                                     ? '検索条件に一致するエントリーがありません。検索をクリアしてください。'
                                     : 'エントリーがありません。'}
@@ -581,11 +597,11 @@ export default function EntriesPage() {
                             filteredEntries.map((entry) => (
                             <div
                                 key={entry.id}
-                                className="p-4 bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50"
+                                className="p-4 bg-[var(--color-bg-surface)] rounded-xl border border-[var(--color-border-base)]"
                             >
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-white font-medium">
+                                        <p className="text-[var(--color-text-primary)] font-medium">
                                             {entry.entry_type === 'team'
                                                 ? entry.teams?.name
                                                     : (() => {
@@ -596,7 +612,7 @@ export default function EntriesPage() {
                                                         return entry.custom_display_name ?? 'エントリー';
                                                     })()}
                                             </p>
-                                            <p className="text-slate-400 text-sm">
+                                            <p className="text-[var(--color-text-muted)] text-sm">
                                                 {entry.teams?.name && <span>代表: {entry.teams.name}</span>}
                                                 {entry.teams?.name && entry.region_name && ' ・ '}
                                                 {entry.region_name && <span>{entry.region_name}</span>}
@@ -604,7 +620,7 @@ export default function EntriesPage() {
                                         </p>
                                         {entry.is_checked_in && entry.day_token && (
                                             <div className="flex items-center gap-2 mt-1">
-                                                <span className="text-slate-400 text-sm">認証キー:</span>
+                                                <span className="text-[var(--color-text-muted)] text-sm">認証キー:</span>
                                                 <AuthKeyDisplay token={entry.day_token} size="sm" />
                                             </div>
                                         )}
@@ -632,12 +648,12 @@ export default function EntriesPage() {
                 {/* Team Modal (簡易版) */}
                 {showTeamModal && (
                     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                        <div className="bg-slate-800 rounded-xl p-6 max-w-md w-full mx-4 shadow-xl border border-slate-700 animate-fade-in">
-                            <h2 className="text-xl font-semibold text-white mb-4">チーム追加</h2>
-                            <p className="text-slate-400 mb-4">チームは「チーム一覧」ページで作成できます。作成後、ここでエントリーに追加できます。</p>
+                        <div className="bg-[var(--color-bg-surface)] rounded-xl p-6 max-w-md w-full mx-4 shadow-xl border border-[var(--color-border-base)] animate-fade-in">
+                            <h2 className="text-xl font-semibold text-[var(--color-text-primary)] mb-4">チーム追加</h2>
+                            <p className="text-[var(--color-text-muted)] mb-4">チームは「チーム一覧」ページで作成できます。作成後、ここでエントリーに追加できます。</p>
                             <button
                                 onClick={() => setShowTeamModal(false)}
-                                className="w-full px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors"
+                                className="w-full px-4 py-2 bg-[var(--color-bg-surface-2)] text-[var(--color-text-primary)] rounded-lg hover:bg-[var(--color-bg-surface-2)] transition-colors"
                             >
                                 閉じる
                             </button>
@@ -648,19 +664,19 @@ export default function EntriesPage() {
                 {/* Player / Team Entry Modal */}
                 {showPlayerModal && selectedTeam && (
                     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                        <div className="bg-slate-800 rounded-xl p-6 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
+                        <div className="bg-[var(--color-bg-surface)] rounded-xl p-6 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
                             {isTeamMatch ? (
                                 <>
-                                    <h2 className="text-xl font-semibold text-white mb-4">チームをエントリーに追加</h2>
-                                    <p className="text-slate-400 text-sm mb-2">代表チーム名</p>
-                                    <p className="text-white font-medium mb-4">{selectedTeam.name}</p>
+                                    <h2 className="text-xl font-semibold text-[var(--color-text-primary)] mb-4">チームをエントリーに追加</h2>
+                                    <p className="text-[var(--color-text-muted)] text-sm mb-2">代表チーム名</p>
+                                    <p className="text-[var(--color-text-primary)] font-medium mb-4">{selectedTeam.name}</p>
                                     <div className="mb-4">
-                                        <label className="block text-sm text-slate-400 mb-1">地域名</label>
+                                        <label className="block text-sm text-[var(--color-text-muted)] mb-1">地域名</label>
                                         <input
                                             type="text"
                                             value={teamEntryRegion}
                                             onChange={(e) => setTeamEntryRegion(e.target.value)}
-                                            className="w-full px-4 py-3 min-h-[48px] bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            className="w-full px-4 py-3 min-h-[48px] bg-[var(--color-bg-surface-2)] border border-[var(--color-border-base)] rounded-lg text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
                                             placeholder="任意"
                                         />
                                     </div>
@@ -671,7 +687,7 @@ export default function EntriesPage() {
                                         <button
                                             onClick={handleSubmitTeamEntry}
                                             disabled={entrySubmitLoading}
-                                            className="flex-1 px-4 py-3 min-h-[48px] bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-800"
+                                            className="flex-1 px-4 py-3 min-h-[48px] bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 focus:ring-offset-[var(--color-bg-surface)]"
                                         >
                                             {entrySubmitLoading ? '追加中...' : '追加'}
                                         </button>
@@ -682,7 +698,7 @@ export default function EntriesPage() {
                                                 setEntrySubmitError(null);
                                                 setTeamEntryRegion('');
                                             }}
-                                            className="px-4 py-3 min-h-[48px] bg-slate-700 text-white rounded-lg hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-800"
+                                            className="px-4 py-3 min-h-[48px] bg-[var(--color-bg-surface-2)] text-[var(--color-text-primary)] rounded-lg hover:bg-[var(--color-bg-surface-2)] focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 focus:ring-offset-[var(--color-bg-surface)]"
                                         >
                                             閉じる
                                         </button>
@@ -690,10 +706,10 @@ export default function EntriesPage() {
                                 </>
                             ) : (
                                 <form onSubmit={playerForm.handleSubmit(handleSubmitPairEntry)}>
-                                    <h2 className="text-xl font-semibold text-white mb-4">エントリー追加 - {selectedTeam.name}</h2>
+                                    <h2 className="text-xl font-semibold text-[var(--color-text-primary)] mb-4">エントリー追加 - {selectedTeam.name}</h2>
                                     {isMixedFormat && (
                                         <div className="mb-4">
-                                            <span className="text-sm text-slate-400 mr-3">種目</span>
+                                            <span className="text-sm text-[var(--color-text-muted)] mr-3">種目</span>
                                             <label className="inline-flex items-center mr-4 cursor-pointer">
                                                 <input
                                                     type="radio"
@@ -701,7 +717,7 @@ export default function EntriesPage() {
                                                     value="singles"
                                                     className="mr-1"
                                                 />
-                                                <span className="text-white text-sm">シングルス</span>
+                                                <span className="text-[var(--color-text-primary)] text-sm">シングルス</span>
                                             </label>
                                             <label className="inline-flex items-center cursor-pointer">
                                                 <input
@@ -710,26 +726,26 @@ export default function EntriesPage() {
                                                     value="doubles"
                                                     className="mr-1"
                                                 />
-                                                <span className="text-white text-sm">ダブルス</span>
+                                                <span className="text-[var(--color-text-primary)] text-sm">ダブルス</span>
                                             </label>
                                         </div>
                                     )}
                                     <div className="mb-4">
-                                        <label className="block text-sm text-slate-400 mb-1">地域名（任意）</label>
+                                        <label className="block text-sm text-[var(--color-text-muted)] mb-1">地域名（任意）</label>
                                         <input
                                             type="text"
                                             {...playerForm.register('region_name')}
-                                            className="w-full px-4 py-3 min-h-[48px] bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            className="w-full px-4 py-3 min-h-[48px] bg-[var(--color-bg-surface-2)] border border-[var(--color-border-base)] rounded-lg text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
                                             placeholder="任意"
                                         />
                                     </div>
                                     <div className="mb-4">
-                                        <label className="block text-sm text-slate-400 mb-1">選手1氏名 <span className="text-red-400">*</span></label>
+                                        <label className="block text-sm text-[var(--color-text-muted)] mb-1">選手1氏名 <span className="text-red-400">*</span></label>
                                         <input
                                             type="text"
                                             {...playerForm.register('player1_name')}
-                                            className={`w-full px-4 py-3 min-h-[48px] bg-slate-700 border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                                                playerForm.formState.errors.player1_name ? 'border-red-500/50' : 'border-slate-600'
+                                            className={`w-full px-4 py-3 min-h-[48px] bg-[var(--color-bg-surface-2)] border rounded-lg text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent ${
+                                                playerForm.formState.errors.player1_name ? 'border-red-500/50' : 'border-[var(--color-border-base)]'
                                             }`}
                                         />
                                         {playerForm.formState.errors.player1_name && (
@@ -739,23 +755,23 @@ export default function EntriesPage() {
                                         )}
                                     </div>
                                     <div className="mb-4">
-                                        <label className="block text-sm text-slate-400 mb-1">選手1所属</label>
+                                        <label className="block text-sm text-[var(--color-text-muted)] mb-1">選手1所属</label>
                                         <input
                                             type="text"
                                             {...playerForm.register('player1_affiliation')}
-                                            className="w-full px-4 py-3 min-h-[48px] bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            className="w-full px-4 py-3 min-h-[48px] bg-[var(--color-bg-surface-2)] border border-[var(--color-border-base)] rounded-lg text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
                                             placeholder={selectedTeam.name}
                                         />
                                     </div>
                                     {(playerForm.watch('entryKind') === 'doubles' || isDoublesOnly) && (
                                         <>
                                             <div className="mb-4">
-                                                <label className="block text-sm text-slate-400 mb-1">選手2氏名 <span className="text-red-400">*</span></label>
+                                                <label className="block text-sm text-[var(--color-text-muted)] mb-1">選手2氏名 <span className="text-red-400">*</span></label>
                                                 <input
                                                     type="text"
                                                     {...playerForm.register('player2_name')}
-                                                    className={`w-full px-4 py-3 min-h-[48px] bg-slate-700 border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                                                        playerForm.formState.errors.player2_name ? 'border-red-500/50' : 'border-slate-600'
+                                                    className={`w-full px-4 py-3 min-h-[48px] bg-[var(--color-bg-surface-2)] border rounded-lg text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent ${
+                                                        playerForm.formState.errors.player2_name ? 'border-red-500/50' : 'border-[var(--color-border-base)]'
                                                     }`}
                                                 />
                                                 {playerForm.formState.errors.player2_name && (
@@ -765,11 +781,11 @@ export default function EntriesPage() {
                                                 )}
                                             </div>
                                             <div className="mb-4">
-                                                <label className="block text-sm text-slate-400 mb-1">選手2所属</label>
+                                                <label className="block text-sm text-[var(--color-text-muted)] mb-1">選手2所属</label>
                                                 <input
                                                     type="text"
                                                     {...playerForm.register('player2_affiliation')}
-                                                    className="w-full px-4 py-3 min-h-[48px] bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                    className="w-full px-4 py-3 min-h-[48px] bg-[var(--color-bg-surface-2)] border border-[var(--color-border-base)] rounded-lg text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
                                                     placeholder={selectedTeam.name}
                                                 />
                                             </div>
@@ -782,7 +798,7 @@ export default function EntriesPage() {
                                         <button
                                             type="submit"
                                             disabled={entrySubmitLoading}
-                                            className="flex-1 px-4 py-3 min-h-[48px] bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-800"
+                                            className="flex-1 px-4 py-3 min-h-[48px] bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 focus:ring-offset-[var(--color-bg-surface)]"
                                         >
                                             {entrySubmitLoading ? '追加中...' : '追加'}
                                         </button>
@@ -795,7 +811,7 @@ export default function EntriesPage() {
                                                 setTeamEntryRegion('');
                                                 playerForm.reset();
                                             }}
-                                            className="px-4 py-3 min-h-[48px] bg-slate-700 text-white rounded-lg hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-800"
+                                            className="px-4 py-3 min-h-[48px] bg-[var(--color-bg-surface-2)] text-[var(--color-text-primary)] rounded-lg hover:bg-[var(--color-bg-surface-2)] focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 focus:ring-offset-[var(--color-bg-surface)]"
                                         >
                                             閉じる
                                         </button>
@@ -806,7 +822,7 @@ export default function EntriesPage() {
                     </div>
                 )}
             </div>
-        </div>
+        </AppShell>
     );
 }
 

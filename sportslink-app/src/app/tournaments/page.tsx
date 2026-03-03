@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import Link from 'next/link';
 import { Trophy, Plus, Search, Filter, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
-import AppHeader from '@/components/AppHeader';
+import AppShell from '@/components/AppShell';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import { SkeletonGrid } from '@/components/Skeleton';
 import CollapsibleFilters from '@/components/ui/CollapsibleFilters';
@@ -64,12 +64,11 @@ export default function TournamentsPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-            <AppHeader />
+        <AppShell>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <div className="mb-8">
                     <Breadcrumbs items={[{ label: '大会一覧' }]} />
-                    <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent mt-2">
+                    <h1 className="text-3xl font-bold text-[var(--color-text-primary)] mt-2">
                         大会一覧
                     </h1>
                 </div>
@@ -88,7 +87,7 @@ export default function TournamentsPage() {
                     <div className="space-y-4">
                         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
                             <div className="relative flex-1 max-w-md">
-                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-[var(--color-text-muted)]" />
                                 <input
                                     type="text"
                                     placeholder="大会名で検索..."
@@ -97,19 +96,19 @@ export default function TournamentsPage() {
                                         setSearchQuery(e.target.value);
                                         setPage(1);
                                     }}
-                                    className="w-full pl-10 pr-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                    className="w-full pl-10 pr-4 py-2 bg-[var(--color-bg-surface-2)]/50 border border-[var(--color-border-base)] rounded-lg text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition-all"
                                 />
                             </div>
 
                             <div className="flex items-center gap-2">
-                                <Filter className="w-4 h-4 text-slate-400" />
+                                <Filter className="w-4 h-4 text-[var(--color-text-muted)]" />
                                 <select
                                     value={statusFilter}
                                     onChange={(e) => {
                                         setStatusFilter(e.target.value as typeof statusFilter);
                                         setPage(1);
                                     }}
-                                    className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    className="px-3 py-2 bg-[var(--color-bg-surface-2)] border border-[var(--color-border-base)] rounded-lg text-[var(--color-text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-brand"
                                 >
                                     <option value="all">すべて</option>
                                     <option value="draft">下書き</option>
@@ -129,8 +128,8 @@ export default function TournamentsPage() {
 
                         <div className="flex flex-wrap items-center gap-4">
                             <div className="flex items-center gap-2">
-                                <Calendar className="w-4 h-4 text-slate-400" />
-                                <label className="text-sm text-slate-300">開始日:</label>
+                                <Calendar className="w-4 h-4 text-[var(--color-text-muted)]" />
+                                <label className="text-sm text-[var(--color-text-secondary)]">開始日:</label>
                                 <input
                                     type="date"
                                     value={startDate}
@@ -138,11 +137,11 @@ export default function TournamentsPage() {
                                         setStartDate(e.target.value);
                                         setPage(1);
                                     }}
-                                    className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    className="px-3 py-2 bg-[var(--color-bg-surface-2)] border border-[var(--color-border-base)] rounded-lg text-[var(--color-text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-brand"
                                 />
                             </div>
                             <div className="flex items-center gap-2">
-                                <label className="text-sm text-slate-300">終了日:</label>
+                                <label className="text-sm text-[var(--color-text-secondary)]">終了日:</label>
                                 <input
                                     type="date"
                                     value={endDate}
@@ -150,7 +149,7 @@ export default function TournamentsPage() {
                                         setEndDate(e.target.value);
                                         setPage(1);
                                     }}
-                                    className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    className="px-3 py-2 bg-[var(--color-bg-surface-2)] border border-[var(--color-border-base)] rounded-lg text-[var(--color-text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-brand"
                                 />
                             </div>
                             {(startDate || endDate) && (
@@ -160,7 +159,7 @@ export default function TournamentsPage() {
                                         setEndDate('');
                                         setPage(1);
                                     }}
-                                    className="px-3 py-2 text-sm text-slate-400 hover:text-white transition-colors"
+                                    className="px-3 py-2 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
                                 >
                                     クリア
                                 </button>
@@ -176,15 +175,15 @@ export default function TournamentsPage() {
                         <p className="text-red-400 mb-4">{(error as Error).message}</p>
                         <button
                             onClick={() => refetch()}
-                            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                            className="px-4 py-2 bg-brand hover:bg-brand-hover text-white rounded-lg transition-colors"
                         >
                             再試行
                         </button>
                     </div>
                 ) : tournaments.length === 0 ? (
                     <div className="text-center py-12">
-                        <Trophy className="w-16 h-16 text-slate-500 mx-auto mb-4" />
-                        <p className="text-slate-400 text-lg mb-2">
+                        <Trophy className="w-16 h-16 text-[var(--color-text-muted)] mx-auto mb-4" />
+                        <p className="text-[var(--color-text-muted)] text-lg mb-2">
                             {searchQuery || statusFilter !== 'all'
                                 ? '条件に一致する大会がありません'
                                 : '大会がありません'}
@@ -192,7 +191,7 @@ export default function TournamentsPage() {
                         {!searchQuery && statusFilter === 'all' && (
                             <Link
                                 href="/tournaments/new"
-                                className="inline-block mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                                className="inline-block mt-4 px-4 py-2 bg-brand hover:bg-brand-hover text-white rounded-lg transition-colors"
                             >
                                 最初の大会を作成
                             </Link>
@@ -204,23 +203,23 @@ export default function TournamentsPage() {
                             <Link
                                 key={tournament.id}
                                 href={`/tournaments/${tournament.id}`}
-                                className="block p-6 bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50 hover:border-slate-600 transition-all"
+                                className="block p-6 bg-[var(--color-bg-surface)] rounded-xl border border-[var(--color-border-base)] hover:border-[var(--color-border-base)] transition-all"
                             >
                                 <div className="flex items-start justify-between mb-4">
-                                    <h3 className="text-xl font-semibold text-white flex-1">{tournament.name}</h3>
+                                    <h3 className="text-xl font-semibold text-[var(--color-text-primary)] flex-1">{tournament.name}</h3>
                                     {getStatusBadge(tournament.status)}
                                 </div>
                                 {tournament.description && (
-                                    <p className="text-slate-400 text-sm mb-4 line-clamp-2">
+                                    <p className="text-[var(--color-text-muted)] text-sm mb-4 line-clamp-2">
                                         {tournament.description}
                                     </p>
                                 )}
-                                <div className="flex items-center justify-between text-sm text-slate-500">
+                                <div className="flex items-center justify-between text-sm text-[var(--color-text-muted)]">
                                     <span>
                                         {new Date(tournament.created_at).toLocaleDateString('ja-JP')}
                                     </span>
                                     {tournament.is_public && (
-                                        <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded text-xs">
+                                        <span className="px-2 py-1 bg-blue-500/20 text-brand rounded text-xs">
                                             公開
                                         </span>
                                     )}
@@ -231,9 +230,9 @@ export default function TournamentsPage() {
                 )}
 
                 {!isLoading && totalCount > limit && (
-                    <div className="mt-8 pt-6 border-t border-slate-700">
+                    <div className="mt-8 pt-6 border-t border-[var(--color-border-base)]">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm text-slate-400">
+                            <p className="text-sm text-[var(--color-text-muted)]">
                                 全{totalCount}大会中、{(page - 1) * limit + 1}〜
                                 {Math.min(page * limit, totalCount)}件を表示
                             </p>
@@ -241,12 +240,12 @@ export default function TournamentsPage() {
                                 <button
                                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                                     disabled={page === 1}
-                                    className="px-3 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                                    className="px-3 py-2 bg-[var(--color-bg-surface-2)] text-[var(--color-text-primary)] rounded-lg hover:bg-[var(--color-bg-surface-2)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                                 >
                                     <ChevronLeft className="w-4 h-4" />
                                     前へ
                                 </button>
-                                <span className="px-4 py-2 text-slate-300">
+                                <span className="px-4 py-2 text-[var(--color-text-secondary)]">
                                     {page} / {Math.ceil(totalCount / limit)}
                                 </span>
                                 <button
@@ -254,7 +253,7 @@ export default function TournamentsPage() {
                                         setPage((p) => Math.min(Math.ceil(totalCount / limit), p + 1))
                                     }
                                     disabled={page >= Math.ceil(totalCount / limit)}
-                                    className="px-3 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                                    className="px-3 py-2 bg-[var(--color-bg-surface-2)] text-[var(--color-text-primary)] rounded-lg hover:bg-[var(--color-bg-surface-2)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                                 >
                                     次へ
                                     <ChevronRight className="w-4 h-4" />
@@ -265,13 +264,13 @@ export default function TournamentsPage() {
                 )}
 
                 {!isLoading && tournaments.length > 0 && totalCount <= limit && (
-                    <div className="mt-8 pt-6 border-t border-slate-700">
-                        <p className="text-sm text-slate-400 text-center">
+                    <div className="mt-8 pt-6 border-t border-[var(--color-border-base)]">
+                        <p className="text-sm text-[var(--color-text-muted)] text-center">
                             全{totalCount}大会を表示
                         </p>
                     </div>
                 )}
             </div>
-        </div>
+        </AppShell>
     );
 }

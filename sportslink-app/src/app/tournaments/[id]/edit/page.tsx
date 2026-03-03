@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import Link from 'next/link';
-import AppHeader from '@/components/AppHeader';
+import AppShell from '@/components/AppShell';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
@@ -101,15 +101,14 @@ export default function EditTournamentPage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
+            <div className="bg-[var(--color-bg-primary)] flex items-center justify-center min-h-screen">
                 <LoadingSpinner />
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-            <AppHeader />
+        <AppShell>
             <div className="max-w-4xl mx-auto px-4 py-8">
                 <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-700/50 p-8">
                     {/* Page Header */}
@@ -277,7 +276,7 @@ export default function EditTournamentPage() {
                     </form>
                 </div>
             </div>
-        </div>
+        </AppShell>
     );
 }
 

@@ -17,6 +17,7 @@ const createTournamentSchema = z.object({
         .nullable()
         .optional(),
     umpire_mode: z.enum(['LOSER', 'ASSIGNED', 'FREE']).optional().default('LOSER'),
+    venue: z.string().nullable().optional(),
 });
 
 const updateTournamentSchema = z.object({
@@ -31,6 +32,7 @@ const updateTournamentSchema = z.object({
         .nullable()
         .optional(),
     umpire_mode: z.enum(['LOSER', 'ASSIGNED', 'FREE']).optional(),
+    venue: z.string().nullable().optional(),
 }).strict();
 
 export async function createTournamentAction(data: unknown) {
@@ -55,6 +57,7 @@ export async function createTournamentAction(data: unknown) {
             end_date: parsed.end_date ?? null,
             match_format: parsed.match_format ?? null,
             umpire_mode: parsed.umpire_mode ?? 'LOSER',
+            venue: parsed.venue ?? null,
             created_by_user_id: user.id,
         })
         .select()

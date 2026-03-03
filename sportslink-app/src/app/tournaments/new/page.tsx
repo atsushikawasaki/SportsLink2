@@ -6,11 +6,13 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
+import AppShell from '@/components/AppShell';
+import Breadcrumbs from '@/components/Breadcrumbs';
 
 const tournamentSchema = z.object({
     name: z.string().min(1, '大会名を入力してください'),
     description: z.string().optional(),
+    venue: z.string().optional(),
     status: z.enum(['draft', 'published', 'finished']).optional(),
     is_public: z.boolean().optional(),
     match_format: z.string().optional(),
@@ -20,6 +22,9 @@ const tournamentSchema = z.object({
 });
 
 type TournamentInput = z.infer<typeof tournamentSchema>;
+
+const inputClass =
+    'w-full px-4 py-3 bg-[var(--color-bg-surface-2)] border border-[var(--color-border-base)] rounded-lg text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent transition-all';
 
 export default function NewTournamentPage() {
     const router = useRouter();
@@ -66,42 +71,36 @@ export default function NewTournamentPage() {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-12">
-            <div className="max-w-4xl mx-auto px-4">
-                <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-700/50 p-8">
-                    {/* Header */}
-                    <div className="mb-8">
-                        <Link
-                            href="/tournaments"
-                            className="flex items-center text-slate-400 hover:text-blue-400 transition-colors mb-4"
-                        >
-                            <ArrowLeft className="w-5 h-5 mr-2" />
-                            大会一覧に戻る
-                        </Link>
-                        <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-                            新規大会作成
-                        </h1>
-                    </div>
+        <AppShell>
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <div className="mb-6">
+                    <Breadcrumbs
+                        items={[
+                            { label: '大会一覧', href: '/tournaments' },
+                            { label: '新規大会作成' },
+                        ]}
+                    />
+                    <h1 className="text-3xl font-bold text-[var(--color-text-primary)] mt-4">新規大会作成</h1>
+                </div>
 
-                    {/* Error Message */}
+                <div className="bg-[var(--color-bg-surface)] rounded-xl border border-[var(--color-border-base)] p-8">
                     {error && (
-                        <div className="mb-6 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                        <div className="mb-6 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
                             <p className="text-sm text-red-400">{error}</p>
                         </div>
                     )}
 
-                    {/* Form */}
                     <form onSubmit={handleSubmit(onSubmit as (data: TournamentInput) => void)} className="space-y-6">
                         {/* Name */}
                         <div>
-                            <label htmlFor="name" className="block text-sm font-medium text-slate-300 mb-2">
+                            <label htmlFor="name" className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
                                 大会名 <span className="text-red-400">*</span>
                             </label>
                             <input
                                 {...register('name')}
                                 type="text"
                                 id="name"
-                                className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                className={inputClass}
                                 placeholder="大会名を入力"
                             />
                             {errors.name && (
@@ -109,29 +108,69 @@ export default function NewTournamentPage() {
                             )}
                         </div>
 
+                        {/* Venue */}
+                        <div>
+                            <label htmlFor="venue" className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
+                                会場
+                            </label>
+                            <input
+                                {...register('venue')}
+                                type="text"
+                                id="venue"
+                                className={inputClass}
+                                placeholder="会場名を入力（例：○○テニスコート）"
+                            />
+                        </div>
+
                         {/* Description */}
                         <div>
-                            <label htmlFor="description" className="block text-sm font-medium text-slate-300 mb-2">
+                            <label htmlFor="description" className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
                                 説明
                             </label>
                             <textarea
                                 {...register('description')}
                                 id="description"
                                 rows={4}
-                                className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                className={inputClass}
                                 placeholder="大会の説明を入力"
                             />
                         </div>
 
+                        {/* Dates */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label htmlFor="start_date" className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
+                                    開始日
+                                </label>
+                                <input
+                                    {...register('start_date')}
+                                    type="date"
+                                    id="start_date"
+                                    className={inputClass}
+                                />
+                            </div>
+                            <div>
+                                <label htmlFor="end_date" className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
+                                    終了日
+                                </label>
+                                <input
+                                    {...register('end_date')}
+                                    type="date"
+                                    id="end_date"
+                                    className={inputClass}
+                                />
+                            </div>
+                        </div>
+
                         {/* Umpire Mode */}
                         <div>
-                            <label htmlFor="umpire_mode" className="block text-sm font-medium text-slate-300 mb-2">
+                            <label htmlFor="umpire_mode" className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
                                 審判モード <span className="text-red-400">*</span>
                             </label>
                             <select
                                 {...register('umpire_mode')}
                                 id="umpire_mode"
-                                className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                className={inputClass}
                             >
                                 <option value="LOSER">敗者審判モード（前試合の敗者が審判を担当）</option>
                                 <option value="ASSIGNED">運営割当モード（運営が指名した審判のみ入力可能）</option>
@@ -144,13 +183,13 @@ export default function NewTournamentPage() {
 
                         {/* Match Format */}
                         <div>
-                            <label htmlFor="match_format" className="block text-sm font-medium text-slate-300 mb-2">
+                            <label htmlFor="match_format" className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
                                 試合形式
                             </label>
                             <select
                                 {...register('match_format')}
                                 id="match_format"
-                                className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                className={inputClass}
                             >
                                 <option value="">選択してください</option>
                                 <option value="team_doubles_3">団体戦（ダブルス3試合）</option>
@@ -160,41 +199,15 @@ export default function NewTournamentPage() {
                             </select>
                         </div>
 
-                        {/* Dates */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label htmlFor="start_date" className="block text-sm font-medium text-slate-300 mb-2">
-                                    開始日
-                                </label>
-                                <input
-                                    {...register('start_date')}
-                                    type="date"
-                                    id="start_date"
-                                    className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                                />
-                            </div>
-                            <div>
-                                <label htmlFor="end_date" className="block text-sm font-medium text-slate-300 mb-2">
-                                    終了日
-                                </label>
-                                <input
-                                    {...register('end_date')}
-                                    type="date"
-                                    id="end_date"
-                                    className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                                />
-                            </div>
-                        </div>
-
                         {/* Public */}
                         <div className="flex items-center">
                             <input
                                 {...register('is_public')}
                                 type="checkbox"
                                 id="is_public"
-                                className="h-4 w-4 rounded border-slate-600 bg-slate-700 text-blue-500 focus:ring-blue-500 focus:ring-offset-slate-800"
+                                className="h-4 w-4 rounded border-[var(--color-border-base)] bg-[var(--color-bg-surface-2)] text-[var(--color-brand)] focus:ring-[var(--color-brand)]"
                             />
-                            <label htmlFor="is_public" className="ml-2 text-sm text-slate-300">
+                            <label htmlFor="is_public" className="ml-2 text-sm text-[var(--color-text-secondary)]">
                                 公開設定（観戦者に公開）
                             </label>
                         </div>
@@ -204,13 +217,13 @@ export default function NewTournamentPage() {
                             <button
                                 type="submit"
                                 disabled={isLoading}
-                                className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-semibold rounded-lg shadow-lg hover:from-blue-600 hover:to-cyan-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                                className="flex-1 px-6 py-3 bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] text-white font-semibold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
                             >
                                 {isLoading ? '作成中...' : '大会を作成'}
                             </button>
                             <Link
                                 href="/tournaments"
-                                className="px-6 py-3 bg-slate-700 text-white font-semibold rounded-lg shadow-lg hover:bg-slate-600 transition-all duration-200"
+                                className="px-6 py-3 bg-[var(--color-bg-surface-2)] border border-[var(--color-border-base)] text-[var(--color-text-secondary)] font-semibold rounded-lg hover:border-[var(--color-border-strong)] transition-all duration-200"
                             >
                                 キャンセル
                             </Link>
@@ -218,7 +231,6 @@ export default function NewTournamentPage() {
                     </form>
                 </div>
             </div>
-        </div>
+        </AppShell>
     );
 }
-

@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server';
 export async function createTournament(request: Request) {
     try {
         const body = await request.json();
-        const { name, description, status, is_public, start_date, end_date, match_format, umpire_mode } = body;
+        const { name, description, status, is_public, start_date, end_date, match_format, umpire_mode, venue } = body;
 
         if (!name || typeof name !== 'string' || name.trim().length === 0) {
             return NextResponse.json(
@@ -48,6 +48,7 @@ export async function createTournament(request: Request) {
                 end_date,
                 match_format,
                 umpire_mode: umpire_mode || 'LOSER',
+                venue: venue ?? null,
                 created_by_user_id: user.id,
             })
             .select()

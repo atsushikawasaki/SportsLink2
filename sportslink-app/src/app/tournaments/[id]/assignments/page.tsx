@@ -7,7 +7,7 @@ import CollapsibleFilters from '@/components/ui/CollapsibleFilters';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Save, Filter } from 'lucide-react';
-import AppHeader from '@/components/AppHeader';
+import AppShell from '@/components/AppShell';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import TournamentSubNav from '@/components/TournamentSubNav';
 import { MatchStatusFilter, isValidMatchStatusFilter } from '@/types/match.types';
@@ -185,15 +185,14 @@ export default function AssignmentsPage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
+            <div className="bg-[var(--color-bg-primary)] flex items-center justify-center min-h-screen">
                 <LoadingSpinner />
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-            <AppHeader />
+        <AppShell>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 {/* Page Header */}
                 <div className="mb-8">
@@ -206,10 +205,10 @@ export default function AssignmentsPage() {
                     />
                     <div className="flex items-center justify-between mt-4">
                         <div>
-                            <h1 className="text-3xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
+                            <h1 className="text-3xl font-bold text-[var(--color-text-primary)]">
                                 試合割当
                             </h1>
-                            {tournament && <p className="text-slate-400 mt-2">{tournament.name}</p>}
+                            {tournament && <p className="text-[var(--color-text-muted)] mt-2">{tournament.name}</p>}
                         </div>
                         <button
                             onClick={handleSave}
@@ -224,10 +223,27 @@ export default function AssignmentsPage() {
 
                 <TournamentSubNav tournamentId={tournamentId} />
 
+                {!loading && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div className="p-4 bg-[var(--color-bg-surface)] rounded-xl border border-[var(--color-border-base)]">
+                            <p className="text-sm text-[var(--color-text-muted)] mb-1">総試合数</p>
+                            <p className="text-2xl font-bold text-[var(--color-text-primary)]">{matches.length}</p>
+                        </div>
+                        <div className="p-4 bg-[var(--color-bg-surface)] rounded-xl border border-[var(--color-border-base)]">
+                            <p className="text-sm text-[var(--color-text-muted)] mb-1">割当済み</p>
+                            <p className="text-2xl font-bold text-green-400">{matches.filter(m => m.umpire_id).length}</p>
+                        </div>
+                        <div className="p-4 bg-[var(--color-bg-surface)] rounded-xl border border-[var(--color-border-base)]">
+                            <p className="text-sm text-[var(--color-text-muted)] mb-1">未割当</p>
+                            <p className="text-2xl font-bold text-yellow-400">{matches.filter(m => !m.umpire_id).length}</p>
+                        </div>
+                    </div>
+                )}
+
                 <CollapsibleFilters>
                 <div className="flex flex-wrap gap-4">
                     <div className="flex items-center gap-2">
-                        <Filter className="w-4 h-4 text-slate-400" />
+                        <Filter className="w-4 h-4 text-[var(--color-text-muted)]" />
                         <select
                             value={statusFilter}
                             onChange={(e) => {
@@ -236,7 +252,7 @@ export default function AssignmentsPage() {
                                     setStatusFilter(value);
                                 }
                             }}
-                            className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                            className="px-3 py-2 bg-[var(--color-bg-surface-2)] border border-[var(--color-border-base)] rounded-lg text-[var(--color-text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-brand"
                         >
                             <option value="all">すべてのステータス</option>
                             <option value="pending">待機中</option>
@@ -248,7 +264,7 @@ export default function AssignmentsPage() {
                     <select
                         value={roundFilter}
                         onChange={(e) => setRoundFilter(e.target.value)}
-                        className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                        className="px-3 py-2 bg-[var(--color-bg-surface-2)] border border-[var(--color-border-base)] rounded-lg text-[var(--color-text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-brand"
                     >
                         <option value="all">すべてのラウンド</option>
                         {uniqueRounds.map((round) => (
@@ -270,27 +286,27 @@ export default function AssignmentsPage() {
                         return (
                             <div
                                 key={match.id}
-                                className="p-6 bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50"
+                                className="p-6 bg-[var(--color-bg-surface)] rounded-xl border border-[var(--color-border-base)]"
                             >
                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
                                     <div>
-                                        <p className="text-white font-medium">{match.round_name}</p>
-                                        <p className="text-slate-400 text-sm">試合 #{match.match_number}</p>
+                                        <p className="text-[var(--color-text-primary)] font-medium">{match.round_name}</p>
+                                        <p className="text-[var(--color-text-muted)] text-sm">試合 #{match.match_number}</p>
                                         {match.match_pairs && match.match_pairs.length > 0 && (
-                                            <p className="text-slate-300 text-sm mt-1">
+                                            <p className="text-[var(--color-text-secondary)] text-sm mt-1">
                                                 {match.match_pairs.map((p) => p.teams?.name).join(' vs ')}
                                             </p>
                                         )}
                                     </div>
                                     <div>
-                                        <label className="block text-sm text-slate-300 mb-2">審判</label>
+                                        <label className="block text-sm text-[var(--color-text-secondary)] mb-2">審判</label>
                                         <select
                                             value={currentUmpire || ''}
                                             onChange={(e) => {
                                                 const value = e.target.value || null;
                                                 handleUmpireChange(match.id, value);
                                             }}
-                                            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                                            className="w-full px-3 py-2 bg-[var(--color-bg-surface-2)] border border-[var(--color-border-base)] rounded-lg text-[var(--color-text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-brand"
                                         >
                                             <option value="">未割当</option>
                                             {umpires.map((umpire) => (
@@ -301,7 +317,7 @@ export default function AssignmentsPage() {
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="block text-sm text-slate-300 mb-2">コート番号</label>
+                                        <label className="block text-sm text-[var(--color-text-secondary)] mb-2">コート番号</label>
                                         <input
                                             type="number"
                                             min={1}
@@ -317,7 +333,7 @@ export default function AssignmentsPage() {
                                                     handleAssignmentChange(match.id, 'court_number', value);
                                                 }
                                             }}
-                                            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                                            className="w-full px-3 py-2 bg-[var(--color-bg-surface-2)] border border-[var(--color-border-base)] rounded-lg text-[var(--color-text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-brand"
                                             placeholder="コート番号（正の整数）"
                                         />
                                     </div>
@@ -327,7 +343,7 @@ export default function AssignmentsPage() {
                                                     ? 'bg-green-500/20 text-green-400'
                                                     : match.status === 'inprogress'
                                                         ? 'bg-blue-500/20 text-blue-400'
-                                                        : 'bg-slate-500/20 text-slate-400'
+                                                        : 'bg-slate-500/20 text-[var(--color-text-muted)]'
                                                 }`}
                                         >
                                             {match.status === 'finished'
@@ -360,8 +376,8 @@ export default function AssignmentsPage() {
                     <div className="text-center py-12">
                         {matches.length === 0 ? (
                             <>
-                                <p className="text-slate-400 text-lg mb-4">ドローが生成されていません</p>
-                                <p className="text-slate-500 text-sm mb-6">
+                                <p className="text-[var(--color-text-muted)] text-lg mb-4">ドローが生成されていません</p>
+                                <p className="text-[var(--color-text-muted)] text-sm mb-6">
                                     試合割当を行うには、先にドロー管理でドローを生成してください
                                 </p>
                                 <Link
@@ -372,12 +388,12 @@ export default function AssignmentsPage() {
                                 </Link>
                             </>
                         ) : (
-                            <p className="text-slate-400">条件に一致する試合がありません</p>
+                            <p className="text-[var(--color-text-muted)]">条件に一致する試合がありません</p>
                         )}
                     </div>
                 )}
             </div>
-        </div>
+        </AppShell>
     );
 }
 

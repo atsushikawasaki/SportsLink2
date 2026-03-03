@@ -5,7 +5,7 @@ import { toast } from '@/lib/toast';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useParams } from 'next/navigation';
 import { Save } from 'lucide-react';
-import AppHeader from '@/components/AppHeader';
+import AppShell from '@/components/AppShell';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import TournamentSubNav from '@/components/TournamentSubNav';
 
@@ -164,15 +164,14 @@ export default function RolesPage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
+            <div className="bg-[var(--color-bg-primary)] flex items-center justify-center min-h-screen">
                 <LoadingSpinner />
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-            <AppHeader />
+        <AppShell>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 {/* Page Header */}
                 <div className="mb-8">
@@ -185,16 +184,16 @@ export default function RolesPage() {
                     />
                     <div className="flex items-center justify-between mt-4">
                         <div>
-                            <h1 className="text-3xl font-bold bg-gradient-to-r from-yellow-400 to-orange-400 bg-clip-text text-transparent">
+                            <h1 className="text-3xl font-bold text-[var(--color-text-primary)]">
                                 権限管理
                             </h1>
-                            {tournament && <p className="text-slate-400 mt-2">{tournament.name}</p>}
-                            <div className="mt-3 flex flex-wrap gap-6 text-sm text-slate-500">
+                            {tournament && <p className="text-[var(--color-text-muted)] mt-2">{tournament.name}</p>}
+                            <div className="mt-3 flex flex-wrap gap-6 text-sm text-[var(--color-text-muted)]">
                                 <span>
-                                    <strong className="text-slate-400">大会運営者:</strong> エントリー・ドロー・試合割当などの大会運営全般を編集できます
+                                    <strong className="text-[var(--color-text-secondary)]">大会運営者:</strong> エントリー・ドロー・試合割当などの大会運営全般を編集できます
                                 </span>
                                 <span>
-                                    <strong className="text-slate-400">審判:</strong> 担当試合のスコア入力・ペア提出ができます
+                                    <strong className="text-[var(--color-text-secondary)]">審判:</strong> 担当試合のスコア入力・ペア提出ができます
                                 </span>
                             </div>
                         </div>
@@ -219,12 +218,12 @@ export default function RolesPage() {
                         return (
                             <div
                                 key={user.id}
-                                className="p-6 bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50"
+                                className="p-6 bg-[var(--color-bg-surface)] rounded-xl border border-[var(--color-border-base)]"
                             >
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-white font-medium">{user.display_name || user.email}</p>
-                                        <p className="text-slate-400 text-sm">{user.email}</p>
+                                        <p className="text-[var(--color-text-primary)] font-medium">{user.display_name || user.email}</p>
+                                        <p className="text-[var(--color-text-muted)] text-sm">{user.email}</p>
                                     </div>
                                     <div className="flex gap-6">
                                         <label className="flex items-center gap-2 cursor-pointer">
@@ -234,18 +233,18 @@ export default function RolesPage() {
                                                 onChange={(e) =>
                                                     handleRoleChange(user.id, 'tournament_admin', e.target.checked)
                                                 }
-                                                className="h-4 w-4 rounded border-slate-600 bg-slate-700 text-yellow-500 focus:ring-yellow-500"
+                                                className="h-4 w-4 rounded border-[var(--color-border-base)] bg-[var(--color-bg-surface-2)] text-yellow-500 focus:ring-yellow-500"
                                             />
-                                            <span className="text-slate-300">大会運営者</span>
+                                            <span className="text-[var(--color-text-secondary)]">大会運営者</span>
                                         </label>
                                         <label className="flex items-center gap-2 cursor-pointer">
                                             <input
                                                 type="checkbox"
                                                 checked={assignments.scorer}
                                                 onChange={(e) => handleRoleChange(user.id, 'scorer', e.target.checked)}
-                                                className="h-4 w-4 rounded border-slate-600 bg-slate-700 text-yellow-500 focus:ring-yellow-500"
+                                                className="h-4 w-4 rounded border-[var(--color-border-base)] bg-[var(--color-bg-surface-2)] text-yellow-500 focus:ring-yellow-500"
                                             />
-                                            <span className="text-slate-300">審判</span>
+                                            <span className="text-[var(--color-text-secondary)]">審判</span>
                                         </label>
                                     </div>
                                 </div>
@@ -256,11 +255,11 @@ export default function RolesPage() {
 
                 {users.length === 0 && (
                     <div className="text-center py-12">
-                        <p className="text-slate-400">ユーザーがありません</p>
+                        <p className="text-[var(--color-text-muted)]">ユーザーがありません</p>
                     </div>
                 )}
             </div>
-        </div>
+        </AppShell>
     );
 }
 

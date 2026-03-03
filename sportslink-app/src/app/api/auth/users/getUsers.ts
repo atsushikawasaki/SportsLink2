@@ -1,9 +1,18 @@
 import { createClient } from '@/lib/supabase/server';
+import { checkRateLimit } from '@/lib/rateLimit';
 import { NextResponse } from 'next/server';
 import { isAdmin } from '@/lib/permissions';
 
 // GET /api/auth/users - ユーザー一覧取得
 export async function getUsers(request: Request) {
+    const { allowed, retryAfter } = checkRateLimit(request, 'get-users', { maxAttempts: 30 });
+    if (!allowed) {
+        return NextResponse.json(
+            { error: 'リクエストが多すぎます。しばらくしてから再試行してください。', code: 'E-RATE-001' },
+            { status: 429, headers: { 'Retry-After': String(retryAfter) } }
+        );
+    }
+
     try {
         const { searchParams } = new URL(request.url);
         const limitParam = searchParams.get('limit');

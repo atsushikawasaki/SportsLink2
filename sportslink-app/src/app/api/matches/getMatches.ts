@@ -1,8 +1,17 @@
 import { createClient } from '@/lib/supabase/server';
+import { checkRateLimit } from '@/lib/rateLimit';
 import { NextResponse } from 'next/server';
 
 // GET /api/matches - 試合一覧取得
 export async function getMatches(request: Request) {
+    const { allowed, retryAfter } = checkRateLimit(request, 'get-matches', { maxAttempts: 60 });
+    if (!allowed) {
+        return NextResponse.json(
+            { error: 'リクエストが多すぎます。しばらくしてから再試行してください。', code: 'E-RATE-001' },
+            { status: 429, headers: { 'Retry-After': String(retryAfter) } }
+        );
+    }
+
     try {
         const { searchParams } = new URL(request.url);
         const limitParam = searchParams.get('limit');

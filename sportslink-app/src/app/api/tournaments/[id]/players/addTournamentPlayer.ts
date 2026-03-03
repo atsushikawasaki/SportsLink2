@@ -9,7 +9,7 @@ import { NextResponse } from 'next/server';
 export async function addTournamentPlayer(id: string, request: Request) {
     try {
         const body = await request.json();
-        const { team_id, player_name, player_type } = body;
+        const { team_id, player_name, player_type, player_name_kana, gender, birthdate, player_email, notes, registration_id } = body;
 
         if (!team_id || !player_name || !player_type) {
             return NextResponse.json(
@@ -66,6 +66,12 @@ export async function addTournamentPlayer(id: string, request: Request) {
                 player_name,
                 player_type: player_type === '前衛' || player_type === '後衛' || player_type === '両方' ? player_type : '両方',
                 sort_order: 1,
+                player_name_kana: player_name_kana ?? null,
+                gender: gender ?? null,
+                birthdate: birthdate ?? null,
+                player_email: player_email ?? null,
+                notes: notes ?? null,
+                registration_id: registration_id ?? null,
             })
             .select('id')
             .single();

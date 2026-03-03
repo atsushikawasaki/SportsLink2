@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import AppHeader from '@/components/AppHeader';
+import AppShell from '@/components/AppShell';
 import Button from '@/components/ui/Button';
 
 const profileSchema = z.object({
@@ -146,9 +146,9 @@ export default function SettingsPage() {
 
     if (!user) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+            <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg-primary)]">
                 <div className="text-center">
-                    <p className="text-slate-400 mb-4">ログインが必要です</p>
+                    <p className="text-[var(--color-text-muted)] mb-4">ログインが必要です</p>
                     <Link
                         href="/login"
                         className="inline-block py-3 px-6 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-semibold rounded-lg shadow-lg hover:from-blue-600 hover:to-cyan-600 transition-all duration-200"
@@ -161,24 +161,23 @@ export default function SettingsPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-            <AppHeader />
+        <AppShell>
             <div className="max-w-4xl mx-auto px-4 py-8">
-                <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-700/50 p-8">
+                <div className="bg-[var(--color-bg-surface)] rounded-2xl shadow-2xl border border-[var(--color-border-base)] p-8">
                     <div className="mb-8">
-                        <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent mb-2">
+                        <h1 className="text-3xl font-bold text-[var(--color-text-primary)] mb-2">
                             設定
                         </h1>
                     </div>
 
                     {/* Tabs */}
-                    <div className="flex space-x-4 mb-8 border-b border-slate-700 overflow-x-auto">
+                    <div className="flex space-x-4 mb-8 border-b border-[var(--color-border-base)] overflow-x-auto">
                         <button
                             onClick={() => setActiveTab('profile')}
                             className={`px-4 py-2 font-medium transition-colors whitespace-nowrap ${
                                 activeTab === 'profile'
-                                    ? 'text-blue-400 border-b-2 border-blue-400'
-                                    : 'text-slate-400 hover:text-slate-300'
+                                    ? 'text-brand border-b-2 border-brand'
+                                    : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
                             }`}
                         >
                             プロフィール
@@ -187,8 +186,8 @@ export default function SettingsPage() {
                             onClick={() => setActiveTab('security')}
                             className={`px-4 py-2 font-medium transition-colors whitespace-nowrap ${
                                 activeTab === 'security'
-                                    ? 'text-blue-400 border-b-2 border-blue-400'
-                                    : 'text-slate-400 hover:text-slate-300'
+                                    ? 'text-brand border-b-2 border-brand'
+                                    : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
                             }`}
                         >
                             セキュリティ
@@ -211,14 +210,14 @@ export default function SettingsPage() {
                     {activeTab === 'profile' && (
                         <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="space-y-6">
                             <div>
-                                <label htmlFor="displayName" className="block text-sm font-medium text-slate-300 mb-2">
+                                <label htmlFor="displayName" className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
                                     表示名
                                 </label>
                                 <input
                                     {...profileForm.register('displayName')}
                                     type="text"
                                     id="displayName"
-                                    className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                    className="w-full px-4 py-3 bg-[var(--color-bg-surface-2)]/50 border border-[var(--color-border-base)] rounded-lg text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition-all"
                                     placeholder="表示名を入力"
                                 />
                                 {profileForm.formState.errors.displayName && (
@@ -229,7 +228,7 @@ export default function SettingsPage() {
                             </div>
 
                             <div>
-                                <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-2">
+                                <label htmlFor="email" className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
                                     メールアドレス
                                 </label>
                                 <input
@@ -237,9 +236,9 @@ export default function SettingsPage() {
                                     id="email"
                                     value={user.email || ''}
                                     disabled
-                                    className="w-full px-4 py-3 bg-slate-700/30 border border-slate-600 rounded-lg text-slate-400 cursor-not-allowed"
+                                    className="w-full px-4 py-3 bg-[var(--color-bg-surface-2)]/50 border border-[var(--color-border-base)] rounded-lg text-[var(--color-text-muted)] cursor-not-allowed"
                                 />
-                                <p className="mt-1 text-sm text-slate-500">メールアドレスは変更できません</p>
+                                <p className="mt-1 text-sm text-[var(--color-text-muted)]">メールアドレスは変更できません</p>
                             </div>
 
                             <Button type="submit" variant="primary" size="lg" isLoading={isLoading}>
@@ -253,53 +252,53 @@ export default function SettingsPage() {
                     {/* Hidden: app tab (開発中) - removed for UX */}
                     {false && (activeTab as string) === 'app' && (
                         <div className="space-y-6">
-                            <h2 className="text-xl font-semibold text-white mb-4">アプリ設定</h2>
+                            <h2 className="text-xl font-semibold text-[var(--color-text-primary)] mb-4">アプリ設定</h2>
                             <div className="space-y-4">
-                                <div className="p-4 bg-slate-700/30 rounded-lg">
-                                    <h3 className="text-white font-medium mb-2">テーマ</h3>
-                                    <p className="text-sm text-slate-400 mb-3">アプリの表示テーマを選択</p>
+                                <div className="p-4 bg-[var(--color-bg-surface-2)]/50 rounded-lg">
+                                    <h3 className="text-[var(--color-text-primary)] font-medium mb-2">テーマ</h3>
+                                    <p className="text-sm text-[var(--color-text-muted)] mb-3">アプリの表示テーマを選択</p>
                                     <div className="flex space-x-4">
-                                        <button className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium">
+                                        <button className="px-4 py-2 bg-brand hover:bg-brand-hover text-white rounded-lg font-medium">
                                             ダーク
                                         </button>
-                                        <button className="px-4 py-2 bg-slate-600 text-white rounded-lg font-medium hover:bg-slate-700">
+                                        <button className="px-4 py-2 bg-[var(--color-border-base)] text-[var(--color-text-primary)] rounded-lg font-medium hover:bg-[var(--color-bg-surface-2)]">
                                             ライト
                                         </button>
                                     </div>
                                 </div>
 
-                                <div className="p-4 bg-slate-700/30 rounded-lg">
-                                    <h3 className="text-white font-medium mb-2">言語</h3>
-                                    <p className="text-sm text-slate-400 mb-3">表示言語を選択</p>
-                                    <select className="w-full px-4 py-2 bg-slate-600 border border-slate-500 rounded-lg text-white">
+                                <div className="p-4 bg-[var(--color-bg-surface-2)]/50 rounded-lg">
+                                    <h3 className="text-[var(--color-text-primary)] font-medium mb-2">言語</h3>
+                                    <p className="text-sm text-[var(--color-text-muted)] mb-3">表示言語を選択</p>
+                                    <select className="w-full px-4 py-2 bg-[var(--color-border-base)] border border-[var(--color-border-base)] rounded-lg text-[var(--color-text-primary)]">
                                         <option value="ja">日本語</option>
                                         <option value="en">English</option>
                                     </select>
                                 </div>
 
-                                <div className="flex items-center justify-between p-4 bg-slate-700/30 rounded-lg">
+                                <div className="flex items-center justify-between p-4 bg-[var(--color-bg-surface-2)]/50 rounded-lg">
                                     <div>
-                                        <h3 className="text-white font-medium">自動同期</h3>
-                                        <p className="text-sm text-slate-400">オフライン時のデータを自動的に同期</p>
+                                        <h3 className="text-[var(--color-text-primary)] font-medium">自動同期</h3>
+                                        <p className="text-sm text-[var(--color-text-muted)]">オフライン時のデータを自動的に同期</p>
                                     </div>
                                     <label className="relative inline-flex items-center cursor-pointer">
                                         <input type="checkbox" className="sr-only peer" defaultChecked />
-                                        <div className="w-11 h-6 bg-slate-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                        <div className="w-11 h-6 bg-[var(--color-border-base)] peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand"></div>
                                     </label>
                                 </div>
 
-                                <div className="flex items-center justify-between p-4 bg-slate-700/30 rounded-lg">
+                                <div className="flex items-center justify-between p-4 bg-[var(--color-bg-surface-2)]/50 rounded-lg">
                                     <div>
-                                        <h3 className="text-white font-medium">オフラインモード</h3>
-                                        <p className="text-sm text-slate-400">オフライン時の機能を有効化</p>
+                                        <h3 className="text-[var(--color-text-primary)] font-medium">オフラインモード</h3>
+                                        <p className="text-sm text-[var(--color-text-muted)]">オフライン時の機能を有効化</p>
                                     </div>
                                     <label className="relative inline-flex items-center cursor-pointer">
                                         <input type="checkbox" className="sr-only peer" defaultChecked />
-                                        <div className="w-11 h-6 bg-slate-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                        <div className="w-11 h-6 bg-[var(--color-border-base)] peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand"></div>
                                     </label>
                                 </div>
                             </div>
-                            <p className="text-sm text-slate-400 mt-4">
+                            <p className="text-sm text-[var(--color-text-muted)] mt-4">
                                 注: アプリ設定は現在開発中です。設定は保存されません。
                             </p>
                         </div>
@@ -310,17 +309,17 @@ export default function SettingsPage() {
                         <div className="space-y-8">
                             {/* Password Change */}
                             <div>
-                                <h2 className="text-xl font-semibold text-white mb-4">パスワード変更</h2>
+                                <h2 className="text-xl font-semibold text-[var(--color-text-primary)] mb-4">パスワード変更</h2>
                                 <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-6">
                                     <div>
-                                        <label htmlFor="currentPassword" className="block text-sm font-medium text-slate-300 mb-2">
+                                        <label htmlFor="currentPassword" className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
                                             現在のパスワード
                                         </label>
                                         <input
                                             {...passwordForm.register('currentPassword')}
                                             type="password"
                                             id="currentPassword"
-                                            className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                            className="w-full px-4 py-3 bg-[var(--color-bg-surface-2)]/50 border border-[var(--color-border-base)] rounded-lg text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition-all"
                                             placeholder="現在のパスワード"
                                         />
                                         {passwordForm.formState.errors.currentPassword && (
@@ -331,14 +330,14 @@ export default function SettingsPage() {
                                     </div>
 
                                     <div>
-                                        <label htmlFor="newPassword" className="block text-sm font-medium text-slate-300 mb-2">
+                                        <label htmlFor="newPassword" className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
                                             新しいパスワード
                                         </label>
                                         <input
                                             {...passwordForm.register('newPassword')}
                                             type="password"
                                             id="newPassword"
-                                            className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                            className="w-full px-4 py-3 bg-[var(--color-bg-surface-2)]/50 border border-[var(--color-border-base)] rounded-lg text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition-all"
                                             placeholder="6文字以上"
                                         />
                                         {passwordForm.formState.errors.newPassword && (
@@ -349,14 +348,14 @@ export default function SettingsPage() {
                                     </div>
 
                                     <div>
-                                        <label htmlFor="confirmPassword" className="block text-sm font-medium text-slate-300 mb-2">
+                                        <label htmlFor="confirmPassword" className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
                                             パスワード（確認）
                                         </label>
                                         <input
                                             {...passwordForm.register('confirmPassword')}
                                             type="password"
                                             id="confirmPassword"
-                                            className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                            className="w-full px-4 py-3 bg-[var(--color-bg-surface-2)]/50 border border-[var(--color-border-base)] rounded-lg text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition-all"
                                             placeholder="パスワードを再入力"
                                         />
                                         {passwordForm.formState.errors.confirmPassword && (
@@ -373,9 +372,9 @@ export default function SettingsPage() {
                             </div>
 
                             {/* Account Deletion */}
-                            <div className="border-t border-slate-700 pt-8">
-                                <h2 className="text-xl font-semibold text-white mb-4">アカウント削除</h2>
-                                <p className="text-slate-400 mb-4">
+                            <div className="border-t border-[var(--color-border-base)] pt-8">
+                                <h2 className="text-xl font-semibold text-[var(--color-text-primary)] mb-4">アカウント削除</h2>
+                                <p className="text-[var(--color-text-muted)] mb-4">
                                     アカウントを削除すると、すべてのデータが削除され、この操作は取り消せません。
                                 </p>
 
@@ -391,14 +390,14 @@ export default function SettingsPage() {
                                 ) : (
                                     <form onSubmit={deleteAccountForm.handleSubmit(onDeleteAccount)} className="space-y-6">
                                         <div>
-                                            <label htmlFor="deletePassword" className="block text-sm font-medium text-slate-300 mb-2">
+                                            <label htmlFor="deletePassword" className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
                                                 パスワードを再入力してください
                                             </label>
                                             <input
                                                 {...deleteAccountForm.register('password')}
                                                 type="password"
                                                 id="deletePassword"
-                                                className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                                                className="w-full px-4 py-3 bg-[var(--color-bg-surface-2)]/50 border border-[var(--color-border-base)] rounded-lg text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
                                                 placeholder="パスワード"
                                             />
                                             {deleteAccountForm.formState.errors.password && (
@@ -434,7 +433,7 @@ export default function SettingsPage() {
                             </div>
 
                             {/* Logout */}
-                            <div className="border-t border-slate-700 pt-8">
+                            <div className="border-t border-[var(--color-border-base)] pt-8">
                                 <Button
                                     type="button"
                                     variant="secondary"
@@ -450,17 +449,16 @@ export default function SettingsPage() {
                         </div>
                     )}
 
-                    <div className="mt-8 pt-8 border-t border-slate-700">
+                    <div className="mt-8 pt-8 border-t border-[var(--color-border-base)]">
                         <Link
                             href="/dashboard"
-                            className="text-sm text-slate-400 hover:text-blue-400 transition-colors"
+                            className="text-sm text-[var(--color-text-muted)] hover:text-brand transition-colors"
                         >
                             ダッシュボードに戻る
                         </Link>
                     </div>
                 </div>
             </div>
-        </div>
+        </AppShell>
     );
 }
-

@@ -5,7 +5,7 @@ import { toast, confirmAsync } from '@/lib/toast';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Search, Filter, Download, RotateCcw, Edit, CheckCircle } from 'lucide-react';
-import AppHeader from '@/components/AppHeader';
+import AppShell from '@/components/AppShell';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import TournamentSubNav from '@/components/TournamentSubNav';
 import Modal from '@/components/ui/Modal';
@@ -247,15 +247,14 @@ export default function ResultsPage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
+            <div className="bg-[var(--color-bg-primary)] flex items-center justify-center min-h-screen">
                 <LoadingSpinner />
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-            <AppHeader />
+        <AppShell>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 {/* Page Header */}
                 <div className="mb-8">
@@ -268,10 +267,10 @@ export default function ResultsPage() {
                     />
                     <div className="flex items-center justify-between mt-4">
                         <div>
-                            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+                            <h1 className="text-3xl font-bold text-[var(--color-text-primary)]">
                                 試合結果
                             </h1>
-                            {tournament && <p className="text-slate-400 mt-2">{tournament.name}</p>}
+                            {tournament && <p className="text-[var(--color-text-muted)] mt-2">{tournament.name}</p>}
                         </div>
                         <div className="flex gap-2">
                             <button
@@ -288,20 +287,38 @@ export default function ResultsPage() {
 
                 <TournamentSubNav tournamentId={tournamentId} />
 
+                {/* Stats Cards */}
+                {!loading && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div className="p-4 bg-[var(--color-bg-surface)] rounded-xl border border-[var(--color-border-base)]">
+                            <p className="text-sm text-[var(--color-text-muted)] mb-1">総試合数</p>
+                            <p className="text-2xl font-bold text-[var(--color-text-primary)]">{matches.length}</p>
+                        </div>
+                        <div className="p-4 bg-[var(--color-bg-surface)] rounded-xl border border-[var(--color-border-base)]">
+                            <p className="text-sm text-[var(--color-text-muted)] mb-1">完了済み</p>
+                            <p className="text-2xl font-bold text-green-400">{matches.filter(m => m.status === 'finished').length}</p>
+                        </div>
+                        <div className="p-4 bg-[var(--color-bg-surface)] rounded-xl border border-[var(--color-border-base)]">
+                            <p className="text-sm text-[var(--color-text-muted)] mb-1">未完了</p>
+                            <p className="text-2xl font-bold text-yellow-400">{matches.filter(m => m.status !== 'finished').length}</p>
+                        </div>
+                    </div>
+                )}
+
                 <CollapsibleFilters>
                 <div className="flex flex-wrap gap-4">
                     <div className="relative flex-1 min-w-[200px] max-w-md">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-[var(--color-text-muted)]" />
                         <input
                             type="text"
                             placeholder="ラウンド名・チーム名で検索..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
+                            className="w-full pl-10 pr-4 py-2 bg-[var(--color-bg-surface-2)]/50 border border-[var(--color-border-base)] rounded-lg text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition-all"
                         />
                     </div>
                     <div className="flex items-center gap-2">
-                        <Filter className="w-4 h-4 text-slate-400" />
+                        <Filter className="w-4 h-4 text-[var(--color-text-muted)]" />
                         <select
                             value={statusFilter}
                             onChange={(e) => {
@@ -310,7 +327,7 @@ export default function ResultsPage() {
                                     setStatusFilter(value);
                                 }
                             }}
-                            className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                            className="px-3 py-2 bg-[var(--color-bg-surface-2)] border border-[var(--color-border-base)] rounded-lg text-[var(--color-text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-brand"
                         >
                             <option value="all">すべてのステータス</option>
                             <option value="pending">待機中</option>
@@ -322,7 +339,7 @@ export default function ResultsPage() {
                     <select
                         value={roundFilter}
                         onChange={(e) => setRoundFilter(e.target.value)}
-                        className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                        className="px-3 py-2 bg-[var(--color-bg-surface-2)] border border-[var(--color-border-base)] rounded-lg text-[var(--color-text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-brand"
                     >
                         <option value="all">すべてのラウンド</option>
                         {uniqueRounds.map((round) => (
@@ -339,21 +356,21 @@ export default function ResultsPage() {
                     {filteredMatches.map((match) => (
                         <div
                             key={match.id}
-                            className="p-6 bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50"
+                            className="p-6 bg-[var(--color-bg-surface)] rounded-xl border border-[var(--color-border-base)]"
                         >
                             <div className="flex items-center justify-between">
                                 <div className="flex-1">
                                     <div className="flex items-center gap-4 mb-2">
-                                        <p className="text-white font-medium">{match.round_name}</p>
-                                        <p className="text-slate-400 text-sm">試合 #{match.match_number}</p>
+                                        <p className="text-[var(--color-text-primary)] font-medium">{match.round_name}</p>
+                                        <p className="text-[var(--color-text-muted)] text-sm">試合 #{match.match_number}</p>
                                     </div>
                                     {match.match_pairs && match.match_pairs.length > 0 && (
                                         <div className="flex items-center gap-4 mb-2">
-                                            <p className="text-white">
+                                            <p className="text-[var(--color-text-primary)]">
                                                 {match.match_pairs[0]?.teams?.name || 'チームA'}
                                             </p>
-                                            <span className="text-slate-400">vs</span>
-                                            <p className="text-white">
+                                            <span className="text-[var(--color-text-muted)]">vs</span>
+                                            <p className="text-[var(--color-text-primary)]">
                                                 {match.match_pairs[1]?.teams?.name || 'チームB'}
                                             </p>
                                         </div>
@@ -365,7 +382,7 @@ export default function ResultsPage() {
                                                     ? match.match_scores[0]?.game_count_a || 0
                                                     : match.match_scores.game_count_a || 0}
                                             </span>
-                                            <span className="text-slate-400">-</span>
+                                            <span className="text-[var(--color-text-muted)]">-</span>
                                             <span className="text-2xl font-bold text-cyan-400">
                                                 {Array.isArray(match.match_scores)
                                                     ? match.match_scores[0]?.game_count_b || 0
@@ -374,7 +391,7 @@ export default function ResultsPage() {
                                             {(Array.isArray(match.match_scores)
                                                 ? match.match_scores[0]?.final_score
                                                 : match.match_scores.final_score) && (
-                                                    <span className="text-slate-400 text-sm">
+                                                    <span className="text-[var(--color-text-muted)] text-sm">
                                                         ({Array.isArray(match.match_scores)
                                                             ? match.match_scores[0]?.final_score
                                                             : match.match_scores.final_score})
@@ -432,7 +449,7 @@ export default function ResultsPage() {
 
                 {filteredMatches.length === 0 && (
                     <div className="text-center py-12">
-                        <p className="text-slate-400">条件に一致する試合がありません</p>
+                        <p className="text-[var(--color-text-muted)]">条件に一致する試合がありません</p>
                     </div>
                 )}
 
@@ -444,7 +461,7 @@ export default function ResultsPage() {
                 >
                     <div className="space-y-4">
                         <div>
-                            <label htmlFor="scoreA" className="block text-sm font-medium text-slate-300 mb-2">
+                            <label htmlFor="scoreA" className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
                                 チームAのゲームカウント
                             </label>
                             <input
@@ -453,11 +470,11 @@ export default function ResultsPage() {
                                 min={0}
                                 value={scoreEditGameA}
                                 onChange={(e) => setScoreEditGameA(e.target.value)}
-                                className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="w-full px-4 py-3 bg-[var(--color-bg-surface-2)]/50 border border-[var(--color-border-base)] rounded-lg text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-brand"
                             />
                         </div>
                         <div>
-                            <label htmlFor="scoreB" className="block text-sm font-medium text-slate-300 mb-2">
+                            <label htmlFor="scoreB" className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
                                 チームBのゲームカウント
                             </label>
                             <input
@@ -466,7 +483,7 @@ export default function ResultsPage() {
                                 min={0}
                                 value={scoreEditGameB}
                                 onChange={(e) => setScoreEditGameB(e.target.value)}
-                                className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="w-full px-4 py-3 bg-[var(--color-bg-surface-2)]/50 border border-[var(--color-border-base)] rounded-lg text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-brand"
                             />
                         </div>
                         {scoreEditError && (
@@ -483,7 +500,7 @@ export default function ResultsPage() {
                     </div>
                 </Modal>
             </div>
-        </div>
+        </AppShell>
     );
 }
 

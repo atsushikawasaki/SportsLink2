@@ -71,7 +71,7 @@ export default function AssignmentsPage() {
                 setMatches(matchesData.data || []);
             }
 
-            const umpiresRes = await fetch('/api/auth/umpires');
+            const umpiresRes = await fetch(`/api/auth/umpires?tournament_id=${tournamentId}`);
             const umpiresData = await umpiresRes.json();
             if (umpiresRes.ok) {
                 setUmpires(umpiresData.data || []);

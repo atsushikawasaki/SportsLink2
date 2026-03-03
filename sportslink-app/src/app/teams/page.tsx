@@ -5,7 +5,7 @@ import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Users, Search, ChevronLeft, ChevronRight } from 'lucide-react';
-import AppHeader from '@/components/AppHeader';
+import AppShell from '@/components/AppShell';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
@@ -79,13 +79,12 @@ export default function TeamsPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-            <AppHeader />
+        <AppShell>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 {/* Page Header */}
                 <div className="mb-8">
                     <Breadcrumbs items={[{ label: 'チーム一覧' }]} />
-                    <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent mt-2">
+                    <h1 className="text-3xl font-bold text-[var(--color-text-primary)] mt-2">
                         チーム一覧
                     </h1>
                 </div>
@@ -93,13 +92,13 @@ export default function TeamsPage() {
                 {/* Search and Actions */}
                 <div className="mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
                     <div className="relative flex-1 max-w-md">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-[var(--color-text-muted)]" />
                         <input
                             type="text"
                             placeholder="チーム名・学校名で検索..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+                            className="w-full pl-10 pr-4 py-2 bg-[var(--color-bg-surface-2)]/50 border border-[var(--color-border-base)] rounded-lg text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
                         />
                     </div>
                 </div>
@@ -121,19 +120,19 @@ export default function TeamsPage() {
                     </div>
                 ) : filteredTeams.length === 0 ? (
                     <div className="text-center py-12">
-                        <Users className="w-16 h-16 text-slate-500 mx-auto mb-4" />
-                        <p className="text-slate-400 text-lg mb-2">
+                        <Users className="w-16 h-16 text-[var(--color-text-muted)] mx-auto mb-4" />
+                        <p className="text-[var(--color-text-muted)] text-lg mb-2">
                             {teams.length === 0 ? 'チームがありません' : '条件に一致するチームがありません'}
                         </p>
                         {teams.length === 0 && (
-                            <p className="text-slate-500 text-sm mb-6">
+                            <p className="text-[var(--color-text-muted)] text-sm mb-6">
                                 大会のエントリー管理でチームを登録できます
                             </p>
                         )}
                         {teams.length === 0 && (
                             <Link
                                 href="/tournaments"
-                                className="inline-block px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                                className="inline-block px-6 py-3 bg-brand hover:bg-brand-hover text-white rounded-lg transition-colors"
                             >
                                 大会一覧へ
                             </Link>
@@ -144,18 +143,18 @@ export default function TeamsPage() {
                         {filteredTeams.map((team) => (
                             <div
                                 key={team.id}
-                                className="p-6 bg-slate-800/50 backdrop-blur-xl rounded-xl border border-slate-700/50 hover:border-slate-600 transition-all"
+                                className="p-6 bg-[var(--color-bg-surface)] rounded-xl border border-[var(--color-border-base)] hover:border-[var(--color-border-base)] transition-all"
                             >
                                 <div className="flex items-start justify-between mb-4">
                                     <div className="flex-1">
-                                        <h3 className="text-xl font-semibold text-white mb-1">{team.name}</h3>
-                                        <p className="text-slate-400 text-sm">チーム</p>
+                                        <h3 className="text-xl font-semibold text-[var(--color-text-primary)] mb-1">{team.name}</h3>
+                                        <p className="text-[var(--color-text-muted)] text-sm">チーム</p>
                                     </div>
                                 </div>
                                 {team.description && (
-                                    <p className="text-slate-300 text-sm mb-4 line-clamp-2">{team.description}</p>
+                                    <p className="text-[var(--color-text-secondary)] text-sm mb-4 line-clamp-2">{team.description}</p>
                                 )}
-                                <div className="flex items-center justify-between text-sm text-slate-500 mb-4">
+                                <div className="flex items-center justify-between text-sm text-[var(--color-text-muted)] mb-4">
                                     <span className="flex items-center gap-1">
                                         <Users className="w-4 h-4" />
                                         {team.tournament_players?.length || 0}名
@@ -175,27 +174,27 @@ export default function TeamsPage() {
 
                 {/* Pagination */}
                 {!loading && totalCount > limit && (
-                    <div className="mt-8 pt-6 border-t border-slate-700">
+                    <div className="mt-8 pt-6 border-t border-[var(--color-border-base)]">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm text-slate-400">
+                            <p className="text-sm text-[var(--color-text-muted)]">
                                 全{totalCount}チーム中、{(page - 1) * limit + 1}〜{Math.min(page * limit, totalCount)}件を表示
                             </p>
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                                     disabled={page === 1}
-                                    className="px-3 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                                    className="px-3 py-2 bg-[var(--color-bg-surface-2)] text-[var(--color-text-primary)] rounded-lg hover:bg-[var(--color-bg-surface-2)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                                 >
                                     <ChevronLeft className="w-4 h-4" />
                                     前へ
                                 </button>
-                                <span className="px-4 py-2 text-slate-300">
+                                <span className="px-4 py-2 text-[var(--color-text-secondary)]">
                                     {page} / {Math.ceil(totalCount / limit)}
                                 </span>
                                 <button
                                     onClick={() => setPage((p) => Math.min(Math.ceil(totalCount / limit), p + 1))}
                                     disabled={page >= Math.ceil(totalCount / limit)}
-                                    className="px-3 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                                    className="px-3 py-2 bg-[var(--color-bg-surface-2)] text-[var(--color-text-primary)] rounded-lg hover:bg-[var(--color-bg-surface-2)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                                 >
                                     次へ
                                     <ChevronRight className="w-4 h-4" />
@@ -207,14 +206,13 @@ export default function TeamsPage() {
 
                 {/* Summary */}
                 {!loading && teams.length > 0 && totalCount <= limit && (
-                    <div className="mt-8 pt-6 border-t border-slate-700">
-                        <p className="text-sm text-slate-400 text-center">
+                    <div className="mt-8 pt-6 border-t border-[var(--color-border-base)]">
+                        <p className="text-sm text-[var(--color-text-muted)] text-center">
                             全{totalCount}チーム中、{filteredTeams.length}チームを表示
                         </p>
                     </div>
                 )}
             </div>
-        </div>
+        </AppShell>
     );
 }
-

@@ -12,6 +12,7 @@ const updateTournamentSchema = z.object({
     end_date: z.string().nullable().optional(),
     match_format: z.enum(['team_doubles_3', 'team_doubles_4_singles_1', 'individual_doubles', 'individual_singles']).nullable().optional(),
     umpire_mode: z.enum(['LOSER', 'ASSIGNED', 'FREE']).optional(),
+    venue: z.string().nullable().optional(),
 }).strict();
 
 // PUT /api/tournaments/:id - 大会更新（大会管理者または管理者または作成者のみ、許可カラムのみ更新）
